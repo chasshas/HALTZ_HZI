@@ -1,0 +1,9 @@
+// HALTZ message types: the single list. Included by msgs.h / msgs.c as an X-macro.
+//
+// Format, one message per line, nothing else on the line:
+//   X(NAME, ID, PAYLOAD_LEN)
+// NAME: upper-case identifier. ID: u8 in hex (0x01..0xFF). PAYLOAD_LEN: exact payload size
+// in bytes, decimal (0..255). Lines starting with // are comments. Never reuse an ID.
+X(HELLO, 0x01, 7)
+X(ACK, 0x02, 1)
+X(NAK, 0x03, 2)
