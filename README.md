@@ -69,6 +69,13 @@ Python once:
 ~/.platformio/penv/bin/python -m pip install intelhex
 ```
 
+Known issue: cpu-s3 (official espressif32 6.13.0, ESP-IDF 5.5.3) and io-esp32 (pioarduino
+55.03.31-2, ESP-IDF 5.5.1) use different versions of the same PlatformIO packages and replace
+each other's copies. The first build after switching projects re-downloads them, and it can
+take a long time. If io-esp32 then fails with "Multiple ways to build the same target",
+delete `firmware/io-esp32/.pio/build` and build again. The pioarduino platform also replaces
+PlatformIO Core in `~/.platformio/penv` with its own fork (6.1.18).
+
 Both ESP projects add `shared/haltz_proto` with `list(APPEND EXTRA_COMPONENT_DIRS ...)`.
 Keep it an append: PlatformIO passes its own source folder in that variable, and `set()`
 would drop it ("Couldn't find the main target of the project!").
