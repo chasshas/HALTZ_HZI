@@ -17,6 +17,10 @@
 
 // HALTZ boot banner + HELLO self-test (haltz_selftest.cpp)
 void haltz_io_selftest(void);
+#ifdef HALTZ_WIRING_TEST
+// HALTZ wiring test (haltz_wiring_test.c, env esp32dev_wiring). Never returns.
+void haltz_io_wiring_test(void);
+#endif
 
 //
 // Autostart
@@ -27,6 +31,9 @@ void initBluepad32() {
 int app_main(void) {
 #endif  // !CONFIG_AUTOSTART_ARDUINO
     haltz_io_selftest();
+#ifdef HALTZ_WIRING_TEST
+    haltz_io_wiring_test();  // Bluetooth is not started in the wiring test
+#endif
 
     // hci_dump_open(NULL, HCI_DUMP_STDOUT);
 

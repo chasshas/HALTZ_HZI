@@ -130,6 +130,35 @@ Without the extension, set `PICO_SDK_PATH` to your SDK checkout first. The outpu
 Each firmware embeds the first 8 hex characters of the current git commit in its HELLO
 message, or `00000000` if git isn't available.
 
+## Wiring test firmware
+
+Separate builds that check the wires of `docs/wiring-v1.md`, stage by stage. They are not the
+real firmware: flash the normal builds back when the wiring is done.
+
+| Board | Build | Checks |
+|---|---|---|
+| Pico #1 | `firmware/gpu-pico/build/haltz_gpu_wiring.uf2` (built with the normal gpu build) | Stage 2: TFT test pattern. The Pico end of stage 3. Stage 6: its console comes over the probe UART |
+| ESP32 | `~/.platformio-haltz-io/penv/bin/pio run -d firmware/io-esp32 -e esp32dev_wiring -t upload -t monitor` | Stage 5: beep test, LED colours, live thumbstick / knob / stick button. The ESP32 end of stage 4 |
+| S3 | `pio run -d firmware/cpu-s3 -e cpu_wiring -t upload -t monitor` | Stage 1: RC522 and power button. Stage 3: GPU link. Stage 4: I/O link |
+
+Flash the Pico and ESP32 test builds first, then the S3: its tests run at boot. It prints
+`[ OK ]` or `[FAIL]` for each wire, with the wire to check, and a summary. Press **BOOT** on
+the S3 to run the tests again. A stage that isn't wired yet just shows FAIL or SKIP.
+After the tests, the S3 prints power button presses and the UID of any card you tap.
+
+How the link tests work: the Pico copies CS to FRAME and SCK to BUSY, then echoes SPI blocks
+inverted (mode 3, 1 MHz); the ESP32 sends a boot banner and echoes UART bytes inverted
+(115200). The S3 also pulses RESET and EN and checks that the other board stops and restarts.
+If the GPU link fails, the Pico console shows what it received on each line.
+
+The TFT pattern is full red, green, blue, white, black, then colour bars with a white frame
+and corner squares (red top-left, green top-right, blue bottom-left), then a backlight fade.
+Wrong colours or orientation are settings, not wiring: change `TFT_INVERT`, `TFT_BGR` or
+`TFT_MADCTL` at the top of `firmware/gpu-pico/src/wiring_test.c`. A white screen with no
+pattern means SCK, MOSI, CS, DC or RES; a dark screen means BL or power.
+
+Stage 6 (SWD) is checked by flashing Pico #1 through the probe.
+
 ## Shared library tests (PC)
 
 ```bash

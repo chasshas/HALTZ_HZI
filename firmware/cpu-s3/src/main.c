@@ -292,9 +292,16 @@ static bool xip_test(void) {
     return pass;
 }
 
+#ifdef HALTZ_WIRING_TEST
+void haltz_wiring_test(void); /* wiring_test.c, never returns */
+#endif
+
 void app_main(void) {
     print_banner();
     print_system_info();
+#ifdef HALTZ_WIRING_TEST
+    haltz_wiring_test();
+#endif
 
     bool hello_ok = hello_self_test();
     printf("HELLO encode/decode: %s\n", hello_ok ? "OK" : "FAIL");

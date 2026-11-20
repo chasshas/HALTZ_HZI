@@ -36,3 +36,15 @@ pico_add_extra_outputs(haltz_gpu)
 # First 8 hex chars of the git commit, or "00000000" without git.
 include(${CMAKE_CURRENT_LIST_DIR}/../../shared/haltz_proto/cmake/haltz_git_hash.cmake)
 haltz_git_hash_header(haltz_gpu)  # build/haltz_generated/haltz_git_hash.h
+
+# Wiring test firmware (src/wiring_test.c): flash build/haltz_gpu_wiring.uf2 to check the
+# TFT (stage 2), the link to the S3 (stage 3) and the probe UART (stage 6).
+add_executable(haltz_gpu_wiring src/wiring_test.c)
+target_compile_options(haltz_gpu_wiring PRIVATE -Wall -Wextra)
+target_link_libraries(haltz_gpu_wiring
+    pico_stdlib pico_multicore hardware_spi hardware_pwm
+    haltz_proto)
+target_include_directories(haltz_gpu_wiring PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/haltz_generated")
+pico_enable_stdio_uart(haltz_gpu_wiring 1)
+pico_enable_stdio_usb(haltz_gpu_wiring 0)
+pico_add_extra_outputs(haltz_gpu_wiring)
