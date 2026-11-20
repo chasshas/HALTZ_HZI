@@ -60,6 +60,14 @@ pio run -d firmware/io-esp32
 
 The first build of each downloads its ESP-IDF and toolchain into `~/.platformio`.
 
+`firmware/io-esp32` is a plain copy (no submodules) of
+[esp-idf-arduino-bluepad32-template](https://github.com/ricardoquesada/esp-idf-arduino-bluepad32-template)
+at commit `2c881858` (2026-10-13), with `components/arduino` and `external/btstack` from its
+submodules. Its platform pin (pioarduino `55.03.31-2`, ESP-IDF 5.5) is kept as the template
+ships it. HALTZ changes: only the `esp32dev` environment, the `haltz_proto` component,
+`main/board_pins.h` and `main/haltz_selftest.cpp`. The optional btstack patch in
+`external/patches` (DualShock 3 support) is not applied.
+
 **gpu-pico** (Pico SDK 2.3.1, board `pico2_w`, platform `rp2350-arm-s`): open the
 `gpu-pico` folder with the Raspberry Pi Pico extension and press *Compile*, or from a shell:
 
