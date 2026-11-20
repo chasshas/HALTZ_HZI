@@ -28,6 +28,8 @@
 /*
  * Not on the header / never use (Pico 2 W wireless chip and board functions):
  *   GP23, GP24, GP25, GP29
+ *
+ * Spare, free for later: GP2-GP9, GP12, GP26-GP28.
  */
 
 #endif /* HALTZ_GPU_BOARD_PINS_H */

@@ -83,6 +83,16 @@ the command above. To recreate that environment on a new machine:
 The first build of each project downloads its ESP-IDF and toolchains (several GB; keep
 ~12 GB free for both).
 
+After changing a `sdkconfig.defaults`, delete the generated config
+(`firmware/cpu-s3/sdkconfig.cpu` or `firmware/io-esp32/sdkconfig.esp32dev`) before building.
+ESP-IDF only takes defaults for options that aren't in the generated file yet, so changed
+values would otherwise be ignored.
+
+Serial ports: on macOS they look like `/dev/cu.usbserial-…` (USB-UART chip, e.g. the
+DevKits' UART port) or `/dev/cu.usbmodem…` (native USB, e.g. the S3's USB port), on Windows
+`COMx`. List them with `pio device list`, then set `upload_port` / `monitor_port` in each
+`platformio.ini`.
+
 If the cpu-s3 build stops at `bootloader.bin` with `No module named 'intelhex'`, the esptool
 shipped with espressif32 6.13.0 is missing a dependency. Install it into PlatformIO's own
 Python once:

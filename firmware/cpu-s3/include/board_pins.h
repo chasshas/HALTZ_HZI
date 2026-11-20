@@ -40,6 +40,9 @@
  *   43, 44     UART0 TX/RX (console via the DevKit's UART USB port)
  *   45, 46     strapping (VDD_SPI voltage, boot mode / ROM log)
  *   38 or 48   on-board RGB LED, depending on DevKitC-1 board revision
+ *
+ * Spare, free for later: 1, 2, 47, 39-42 (39-42 are JTAG, free while debugging over USB).
+ * UART2 is free.
  */
 
 #endif /* HALTZ_CPU_BOARD_PINS_H */
