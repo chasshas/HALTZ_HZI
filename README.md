@@ -38,28 +38,50 @@ projects. Install the recommended extensions when VS Code offers them: PlatformI
 Raspberry Pi Pico, C/C++, CMake Tools, Python.
 
 The workspace has the tasks **build cpu**, **build io**, **build gpu** and **test shared**
-(Terminal > Run Task...). They expect `pio`, `cmake` and `ninja` on `PATH`. The PlatformIO
-extension provides `pio` in its own terminals. The Pico extension keeps CMake and Ninja under
-`~/.pico-sdk/`.
+(Terminal > Run Task...). They expect `pio`, `cmake` and `ninja` on `PATH`; **build io** calls
+io-esp32's own `pio` (see below). The PlatformIO extension provides `pio` in its own
+terminals. The Pico extension keeps CMake and Ninja under `~/.pico-sdk/`.
 
 ## Building
 
 Run all commands from the repo root.
 
-**cpu-s3** (PlatformIO pins `espressif32 @ 6.13.0`):
+Each ESP project has its own PlatformIO folder (`core_dir` in its `platformio.ini`), because
+the two use different versions of the same packages and would otherwise keep replacing each
+other's copies (and those of your other PlatformIO projects) in `~/.platformio`:
+
+| Project | Platform | ESP-IDF | PlatformIO folder | Build with |
+|---|---|---|---|---|
+| cpu-s3 | `espressif32 @ 6.13.0` | 5.5.3 | `~/.platformio-haltz-cpu` | normal `pio` (Core 6.2.0) |
+| io-esp32 | pioarduino `55.03.31-2` (template pin) | 5.5.1 | `~/.platformio-haltz-io` | `~/.platformio-haltz-io/penv/bin/pio` |
+
+**cpu-s3:**
 
 ```bash
 pio run -d firmware/cpu-s3
 ```
 
-**io-esp32** (PlatformIO, the template's pioarduino platform pin, env `esp32dev`):
+**io-esp32:**
 
 ```bash
-pio run -d firmware/io-esp32
+~/.platformio-haltz-io/penv/bin/pio run -d firmware/io-esp32
 ```
 
-The first build of each downloads its ESP-IDF and toolchain into `~/.platformio` (several GB,
-keep ~12 GB free for both).
+io-esp32 needs pioarduino's fork of PlatformIO Core (6.1.18, it pins SCons 4.8.1). The fork
+lives only in `~/.platformio-haltz-io/penv`, so your normal `pio` stays the official one. The
+PlatformIO IDE buttons use the normal `pio`, so build io-esp32 with the **build io** task or
+the command above. To recreate that environment on a new machine:
+
+```bash
+~/.platformio/python3/bin/python3 -m venv ~/.platformio-haltz-io/penv
+```
+
+```bash
+~/.platformio-haltz-io/penv/bin/python -m pip install https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.18.zip
+```
+
+The first build of each project downloads its ESP-IDF and toolchains (several GB; keep
+~12 GB free for both).
 
 If the cpu-s3 build stops at `bootloader.bin` with `No module named 'intelhex'`, the esptool
 shipped with espressif32 6.13.0 is missing a dependency. Install it into PlatformIO's own
@@ -68,13 +90,6 @@ Python once:
 ```bash
 ~/.platformio/penv/bin/python -m pip install intelhex
 ```
-
-Known issue: cpu-s3 (official espressif32 6.13.0, ESP-IDF 5.5.3) and io-esp32 (pioarduino
-55.03.31-2, ESP-IDF 5.5.1) use different versions of the same PlatformIO packages and replace
-each other's copies. The first build after switching projects re-downloads them, and it can
-take a long time. If io-esp32 then fails with "Multiple ways to build the same target",
-delete `firmware/io-esp32/.pio/build` and build again. The pioarduino platform also replaces
-PlatformIO Core in `~/.platformio/penv` with its own fork (6.1.18).
 
 Both ESP projects add `shared/haltz_proto` with `list(APPEND EXTRA_COMPONENT_DIRS ...)`.
 Keep it an append: PlatformIO passes its own source folder in that variable, and `set()`

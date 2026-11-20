@@ -37,7 +37,7 @@
       {
         "label": "build io",
         "type": "shell",
-        "command": "pio run -d firmware/io-esp32",
+        "command": "${userHome}/.platformio-haltz-io/penv/bin/pio run -d firmware/io-esp32",
         "options": { "cwd": "${workspaceFolder:shared}/.." },
         "group": "build",
         "problemMatcher": ["$gcc"]
