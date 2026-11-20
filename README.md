@@ -58,7 +58,20 @@ pio run -d firmware/cpu-s3
 pio run -d firmware/io-esp32
 ```
 
-The first build of each downloads its ESP-IDF and toolchain into `~/.platformio`.
+The first build of each downloads its ESP-IDF and toolchain into `~/.platformio` (several GB,
+keep ~12 GB free for both).
+
+If the cpu-s3 build stops at `bootloader.bin` with `No module named 'intelhex'`, the esptool
+shipped with espressif32 6.13.0 is missing a dependency. Install it into PlatformIO's own
+Python once:
+
+```bash
+~/.platformio/penv/bin/python -m pip install intelhex
+```
+
+Both ESP projects add `shared/haltz_proto` with `list(APPEND EXTRA_COMPONENT_DIRS ...)`.
+Keep it an append: PlatformIO passes its own source folder in that variable, and `set()`
+would drop it ("Couldn't find the main target of the project!").
 
 `firmware/io-esp32` is a plain copy (no submodules) of
 [esp-idf-arduino-bluepad32-template](https://github.com/ricardoquesada/esp-idf-arduino-bluepad32-template)
