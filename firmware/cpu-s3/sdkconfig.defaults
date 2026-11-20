@@ -1,0 +1,26 @@
+# HALTZ CPU (ESP32-S3-WROOM-1 N16R8). All project config lives here; option names checked
+# against ESP-IDF 5.5 Kconfig.
+
+# Flash: 16 MB, quad I/O
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+
+# PSRAM: 8 MB octal at 80 MHz. Only reachable through heap_caps_malloc(MALLOC_CAP_SPIRAM);
+# plain malloc() stays internal. Code and rodata execute from PSRAM so flash writes don't
+# stall the other core.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y
+
+# CPU and scheduler
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_FREERTOS_HZ=1000
+
+# Partitions: nvs, phy_init, 4 MB factory app, "storage" for the rest
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Bluetooth stays off on this board (the I/O board does Bluetooth)
+CONFIG_BT_ENABLED=n
