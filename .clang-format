@@ -1,0 +1,15 @@
+# One style for all HALTZ C/C++ code (third-party code under
+# firmware/io-esp32/components and firmware/io-esp32/external keeps its own).
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+ContinuationIndentWidth: 4
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlignConsecutiveMacros: Consecutive
+AlignTrailingComments: true
+PointerAlignment: Right
+SortIncludes: Never

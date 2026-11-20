@@ -1,0 +1,63 @@
+{
+  "folders": [
+    { "name": "cpu-s3", "path": "firmware/cpu-s3" },
+    { "name": "io-esp32", "path": "firmware/io-esp32" },
+    { "name": "gpu-pico", "path": "firmware/gpu-pico" },
+    { "name": "shared", "path": "shared" },
+    { "name": "tools", "path": "tools" },
+    { "name": "docs", "path": "docs" }
+  ],
+  "settings": {
+    "files.eol": "\n",
+    "files.insertFinalNewline": true,
+    "editor.formatOnSave": false,
+    "C_Cpp.clang_format_style": "file",
+    "cmake.configureOnOpen": false
+  },
+  "extensions": {
+    "recommendations": [
+      "platformio.platformio-ide",
+      "raspberry-pi.raspberry-pi-pico",
+      "ms-vscode.cpptools",
+      "ms-vscode.cmake-tools",
+      "ms-python.python"
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "build cpu",
+        "type": "shell",
+        "command": "pio run -d firmware/cpu-s3",
+        "options": { "cwd": "${workspaceFolder:shared}/.." },
+        "group": "build",
+        "problemMatcher": ["$gcc"]
+      },
+      {
+        "label": "build io",
+        "type": "shell",
+        "command": "pio run -d firmware/io-esp32",
+        "options": { "cwd": "${workspaceFolder:shared}/.." },
+        "group": "build",
+        "problemMatcher": ["$gcc"]
+      },
+      {
+        "label": "build gpu",
+        "type": "shell",
+        "command": "cmake -S firmware/gpu-pico -B firmware/gpu-pico/build -G Ninja && cmake --build firmware/gpu-pico/build",
+        "options": { "cwd": "${workspaceFolder:shared}/.." },
+        "group": "build",
+        "problemMatcher": ["$gcc"]
+      },
+      {
+        "label": "test shared",
+        "type": "shell",
+        "command": "cmake -S shared/haltz_proto -B build-host -DHALTZ_BUILD_TESTS=ON && cmake --build build-host && ./build-host/haltz_proto_tests",
+        "options": { "cwd": "${workspaceFolder:shared}/.." },
+        "group": "test",
+        "problemMatcher": ["$gcc"]
+      }
+    ]
+  }
+}
