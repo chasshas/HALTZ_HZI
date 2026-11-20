@@ -9,6 +9,10 @@
 #include "haltz/packet.h"
 #include "haltz/proto.h"
 
+// Generated per build by shared/haltz_proto/scripts/pio_git_hash.py ("00000000" without it).
+#if __has_include("haltz_git_hash.h")
+#include "haltz_git_hash.h"
+#endif
 #ifndef HALTZ_GIT_HASH
 #define HALTZ_GIT_HASH "00000000"
 #endif

@@ -40,6 +40,13 @@
 #include "haltz/packet.h"
 #include "haltz/proto.h"
 
+/* Generated per build: shared/haltz_proto/scripts/pio_git_hash.py (PlatformIO) or
+ * haltz_git_hash.cmake (CMake). Without it the hash reads "00000000". */
+#if defined(__has_include)
+#if __has_include("haltz_git_hash.h")
+#include "haltz_git_hash.h"
+#endif
+#endif
 #ifndef HALTZ_GIT_HASH
 #define HALTZ_GIT_HASH "00000000"
 #endif
