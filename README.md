@@ -110,7 +110,11 @@ would drop it ("Couldn't find the main target of the project!").
 at commit `2c881858` (2026-10-13), with `components/arduino` and `external/btstack` from its
 submodules. Its platform pin (pioarduino `55.03.31-2`, ESP-IDF 5.5) is kept as the template
 ships it. HALTZ changes: only the `esp32dev` environment, the `haltz_proto` component,
-`main/board_pins.h` and `main/haltz_selftest.cpp`. The optional btstack patch in
+`main/board_pins.h` and `main/haltz_selftest.cpp`, plus two for keyboard reconnect:
+`main/sketch.cpp` no longer calls `BP32.forgetBluetoothKeys()` at boot, and
+`components/bluepad32/bt/uni_bt_le.c` accepts advertisements from bonded addresses that carry
+no appearance field (the keyboard sends those when it reconnects outside pairing mode; without
+this they were dropped). Re-apply both after updating the template. The optional btstack patch in
 `external/patches` (DualShock 3 support) is not applied.
 
 **gpu-pico** (Pico SDK 2.3.1, board `pico2_w`, platform `rp2350-arm-s`): open the

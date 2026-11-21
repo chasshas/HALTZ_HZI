@@ -837,6 +837,18 @@ void uni_bt_le_on_hci_event_encryption_change(const uint8_t* packet, uint16_t si
     }
 }
 
+// HALTZ: true if this address has a stored LE bond.
+static bool is_bonded_le_addr(const bd_addr_t addr) {
+    for (int i = 0; i < le_device_db_max_count(); i++) {
+        int entry_address_type = (int)BD_ADDR_TYPE_UNKNOWN;
+        bd_addr_t entry_address;
+        le_device_db_info(i, &entry_address_type, entry_address, NULL);
+        if (entry_address_type != (int)BD_ADDR_TYPE_UNKNOWN && bd_addr_cmp(entry_address, addr) == 0)
+            return true;
+    }
+    return false;
+}
+
 void uni_bt_le_on_gap_event_advertising_report(const uint8_t* packet, uint16_t size) {
     bd_addr_t addr;
     bd_addr_type_t addr_type;
@@ -859,6 +871,16 @@ void uni_bt_le_on_gap_event_advertising_report(const uint8_t* packet, uint16_t s
     }
 
     adv_event_get_data(packet, size, &appearance, name);
+
+    // HALTZ: a bonded keyboard reconnecting outside pairing mode advertises without the appearance
+    // field (often a directed advertisement with no data at all), so the filter below would drop
+    // it and the stored keys would never be used. Accept bonded addresses anyway. The only bonded
+    // device on HALTZ is the keyboard; its real type still comes from the HID descriptor.
+    if (appearance == 0 && is_bonded_le_addr(addr)) {
+        logi("Bonded device advertising: %s (event type %u), reconnecting\n", bd_addr_to_str(addr),
+             gap_event_advertising_report_get_advertising_event_type(packet));
+        appearance = UNI_BT_HID_APPEARANCE_KEYBOARD;
+    }
 
     if (appearance != UNI_BT_HID_APPEARANCE_GAMEPAD && appearance != UNI_BT_HID_APPEARANCE_JOYSTICK &&
         appearance != UNI_BT_HID_APPEARANCE_MOUSE && appearance != UNI_BT_HID_APPEARANCE_KEYBOARD) {

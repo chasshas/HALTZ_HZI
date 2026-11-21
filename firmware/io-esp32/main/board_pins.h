@@ -13,6 +13,14 @@
 #define PIN_STICK_VRX 34 /* ADC1_CH6, input only */
 #define PIN_STICK_VRY 35 /* ADC1_CH7, input only */
 #define PIN_STICK_SW  32 /* push switch to GND, use the internal pull-up, active low */
+/*
+ * The stick is mounted turned 180 degrees (measured: pushing right reads X negative, pushing up
+ * reads Y negative). Convention for the offsets after this fix: right = +X, up = +Y.
+ * Set a flag to 1 to flip that axis, SWAP_XY to 1 to exchange X and Y first (a 90 degree turn).
+ */
+#define STICK_SWAP_XY 0
+#define STICK_INVERT_X 1
+#define STICK_INVERT_Y 1
 
 /* ---- Knob (10 k pot wiper) ---- */
 #define PIN_KNOB 36 /* ADC1_CH0 (SENSOR_VP), input only */
@@ -22,7 +30,7 @@
 #define PIN_LED_G 19
 #define PIN_LED_B 21
 
-/* ---- Buzzers (3-pin modules GND/VCC/SIG, 1 k resistor in each SIG line) ---- */
+/* ---- Buzzers (3-pin modules GND/VCC/SIG with a transistor; SIG straight to the pin, 1 k optional) ---- */
 /* Silent = pin set to input with no pull (not driven HIGH or LOW). */
 /* Playing = 50% square wave. GPIO25/26 are also the DAC pins. */
 #define PIN_BUZZER_A 25 /* voice A */

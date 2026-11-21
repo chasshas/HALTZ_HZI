@@ -105,7 +105,7 @@ Sound (two voices):
 - Each buzzer gets its own LEDC timer, so each voice can play a different note at the same time (melody + bass, or music + sound effect). ESP32 LEDC has 8 timers and 16 channels; HALTZ uses 3 timers, 5 channels.
 - Commands from the S3: TONE (voice, freq, ms), NOTES (voice, list of note/length), SFX (id: beep, click, error, coin, power-up, power-down...), STOP (voice), VOLUME (rough, by changing PWM duty).
 - The I/O board keeps a note queue per voice and does the timing itself, so the S3 only sends a tune once.
-- Silent = pin released (input, no pull), not HIGH or LOW. The module's transistor is unmarked (PNP or NPN unknown); a released pin keeps either type off, and also a bare buzzer. A 1 k resistor sits in each SIG line.
+- Silent = pin released (input, no pull), not HIGH or LOW. The module's transistor is unmarked (PNP or NPN unknown); a released pin keeps either type off, and also a bare buzzer. The modules turned out to have a transistor, and SIG is wired straight to the GPIO (a 1 k in the SIG line is optional).
 - Passive buzzers play square waves only; volume control by duty is crude. That's the "HALTZ sound chip" sound for now.
 
 Status LED (RGB module, 3 PWM channels on one LEDC timer, ~5 kHz):
@@ -157,7 +157,7 @@ All boards use 3.3 V logic, so no level shifters. RC522, thumbstick, knob and bu
 
 ## Open questions
 1. Knob: what should it do (see candidates)?
-2. Buzzer modules: beep test result (transistor on board or not)?
+2. Buzzer modules: answered at bring-up. Transistor on board (clear beep); SIG works wired straight to the GPIO, so the 1 k is optional.
 3. Right click: keyboard key, or is there a spare push button?
 4. Wiring: breadboards and jumper wires (male-male, male-female)? Roughly how many?
 5. Power: enough USB cables and ports to run 4 boards at once (or a powered hub / 5 V supply)?

@@ -43,7 +43,7 @@
 #define TFT_SPI_HZ  16000000 /* wiring doc: start at 10-20 MHz */
 #define TFT_W       320      /* landscape */
 #define TFT_H       240
-#define TFT_MADCTL  0x60 /* MX | MV: landscape. Try 0xA0 if the picture is upside down */
+#define TFT_MADCTL  0xA0 /* MY | MV: landscape, turned 180 degrees from 0x60 (as mounted) */
 #define TFT_INVERT  1    /* most ST7789V IPS panels need INVON. 0 if colours are inverted */
 #define TFT_BGR     0    /* 1 if red and blue are swapped (adds MADCTL BGR bit) */
 #define TFT_HOLD_MS 1200 /* time per colour */

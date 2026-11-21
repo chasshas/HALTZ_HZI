@@ -180,15 +180,19 @@ static result_t stage1_rc522(void) {
     uint8_t v = rc_read(RC_VERSION);
     const char *name = rc_version_name(v);
     char what[80];
+    /* An unlisted version that is not 0x00/0xFF still means something answers on the bus (many
+     * clones report odd values): carry on, the register write/read below decides. */
+    bool plausible = name != NULL || (v != 0x00 && v != 0xFF);
     snprintf(what, sizeof(what), "chip version 0x%02X %s%s%s", v, name ? "(" : "",
-             name ? name : "", name ? ")" : "");
+             name ? name : (plausible ? "(not in the known list, continuing)" : ""),
+             name ? ")" : "");
     const char *hint =
         v == 0xFF ? "reads 0xFF: MISO (RC522 MISO -> S3 GPIO6) open, or the RC522 has no 3.3 V "
                     "/ GND, or RST is held low (RST -> GPIO15)"
         : v == 0x00 ? "reads 0x00: MISO shorted to GND, or SCK (GPIO4) / SDA=CS (GPIO7) open"
                     : "unknown value: check SCK/MOSI/MISO/SDA are not swapped, wires short";
-    check(&r, name != NULL, what, hint);
-    if (name == NULL) {
+    check(&r, plausible, what, hint);
+    if (!plausible) {
         s_rc_ok = false;
         return r;
     }
@@ -419,6 +423,10 @@ static result_t stage3_gpu_link(void) {
         check(&r, false, "Pico back after second reset", NULL);
         return r;
     }
+
+    /* The Pico mirrors CS/SCK right after reset but then prints its banner (tens of ms) before
+     * it serves SPI. Wait that out, or the first echoes come back late. */
+    delay_ms(500);
 
     /* SPI mode 3. The Pico sends block k-1 inverted while it receives block k. */
     spi_bus_config_t bus = {.mosi_io_num = PIN_GPU_MOSI,

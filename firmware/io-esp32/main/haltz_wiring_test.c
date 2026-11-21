@@ -250,6 +250,17 @@ void haltz_io_wiring_test(void) {
     while (true) {
         int x = adc_avg(&an[0], 8, NULL) - cx;
         int y = adc_avg(&an[1], 8, NULL) - cy;
+        if (STICK_SWAP_XY) {
+            int t = x;
+            x = y;
+            y = t;
+        }
+        if (STICK_INVERT_X) {
+            x = -x;
+        }
+        if (STICK_INVERT_Y) {
+            y = -y;
+        }
         int k = adc_avg(&an[2], 16, NULL);
         int sw = gpio_get_level(PIN_STICK_SW);
 

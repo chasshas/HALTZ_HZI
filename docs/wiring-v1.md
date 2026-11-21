@@ -1,10 +1,11 @@
 # HALTZ wiring v1 (provisional)
 
-Status: draft, rev 5, 2026-11-19. Goes with architecture-v1.md. Pin choices are first proposals; change them freely at bring-up.
+Status: draft, rev 6, 2026-11-21. Goes with architecture-v1.md. Pin choices are first proposals; change them freely at bring-up.
 Rev 2: micro:bit stage removed; buzzers + RGB LED added on the ESP32.
 Rev 3: parts confirmed: buzzers are 3-pin modules with black sealed (magnetic) buzzers, the RGB LED is a module with resistors, the joystick is a wired thumbstick (KY-023 style). The user has resistors, transistors and diodes.
 Rev 4: buzzer modules are labelled GND / VCC / SIG. Keyboard confirmed BLE (HS6621CG).
 Rev 5: buzzer transistor has no readable marking, so the buzzer pins idle released (high-impedance) when silent, which is safe for every module type. Added a 10 k potentiometer (ESP32 GPIO36) and a power button (S3 GPIO16).
+Rev 6: bring-up results. Beep test: clear beep, so the modules have a transistor; both buzzers also work with SIG wired straight to the GPIO, so the 1 k resistors are optional. All stages checked except stage 6 (SWD). The thumbstick is mounted turned 180 degrees and the TFT runs landscape turned 180 degrees; both are corrected in firmware (`STICK_*` flags in `firmware/io-esp32/main/board_pins.h`, `TFT_MADCTL 0xA0` in `firmware/gpu-pico/src/wiring_test.c`).
 Pico pins are given as GPx (physical pin number).
 
 ## Ground rules
@@ -109,13 +110,15 @@ Swap the two outer pins if the knob turns "the wrong way". Firmware notes: same 
 |---|---|---|
 | VCC | 3V3 (never 5 V) | 3V3 (never 5 V) |
 | GND | GND | GND |
-| SIG | 1 k resistor -> GPIO25 | 1 k resistor -> GPIO26 |
+| SIG | GPIO25 (1 k resistor optional) | GPIO26 (1 k resistor optional) |
+
+The modules have a transistor on board (clear beep in the beep test), and both work with SIG wired straight to the GPIO; that is how they're wired now. A 1 k in the SIG line still works and limits the pin current, so put it back if a module ever gets warm or a different module is used.
 
 Silent = pin released. When a voice is silent, the firmware switches its pin to input (high-impedance, no pull-up or pull-down) instead of holding it HIGH or LOW. With no current into SIG, a PNP or NPN transistor stays off and a bare buzzer gets no current, so the idle state is safe whatever is on the module. At reset the ESP32 pins start as inputs too, so it's also silent while booting.
 Playing a note: the pin outputs a square wave (50% duty), which works the same for PNP, NPN or bare buzzer.
 
 Beep test (first power-up): play ~2 kHz.
-- Clear beep: a transistor is on board. Keep this wiring; the 1 k stays.
+- Clear beep: a transistor is on board. Keep this wiring (result for the current modules: clear beep, with or without the 1 k).
 - Barely audible: no transistor. Build one NPN driver per buzzer: GPIO -> 1 k -> base; emitter -> GND; collector -> buzzer "-"; buzzer "+" -> 3V3 (or VIN for louder); diode across the buzzer, stripe on the "+" side. Check the NPN pinout on its datasheet.
 
 GPIO25/26 are also the ESP32's DAC pins, which could allow better audio later.
@@ -137,11 +140,10 @@ The probe does not power Pico #1; Pico #1 keeps its own USB.
 - ESP32: GPIO4, 13, 14, 22, 23, 27, 33, 39 (39 is input-only).
 
 ## Wire count (approx.)
-RC522 8, power button 2, TFT 8, GPU link 8, I/O link 4, thumbstick 5, knob 3, LED 4, buzzers 6 (+2 resistors), probe 5: about 53 wires, plus jumpers to the ground rail.
+RC522 8, power button 2, TFT 8, GPU link 8, I/O link 4, thumbstick 5, knob 3, LED 4, buzzers 6 (+2 optional resistors), probe 5: about 53 wires, plus jumpers to the ground rail.
 
 ## Open questions
 - Power button: momentary push button or a latching switch?
-- Buzzer modules: beep test result?
 - Right click: keyboard key (default), or a spare push button on ESP32 GPIO33.
 - TFT pin labels (exact names on the module)?
 - Are headers soldered on both Picos, and on Pico #1's DEBUG pads?
