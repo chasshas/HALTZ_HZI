@@ -22,11 +22,11 @@ project's `board_pins.h`.
 
 ```
 haltz.code-workspace   VS Code multi-root workspace
-shared/haltz_proto/    C11 protocol library (frames, CRC-8, messages) + PC unit tests
+shared/haltz_proto/    C11 shared library (frames, CRC-8, messages, the HALTZ VM, program images) + PC tests
 firmware/cpu-s3/       PlatformIO, ESP-IDF, C
 firmware/io-esp32/     PlatformIO, ESP-IDF + Arduino + Bluepad32, C++ (from the Bluepad32 template)
 firmware/gpu-pico/     Pico SDK 2.x, C
-tools/                 host-side Python tools (none yet)
+tools/                 host-side Python tools (GPU table generator, VM assembler hzasm, examples)
 docs/                  pointer to the design docs
 ```
 
@@ -254,6 +254,19 @@ cmake --build build-host
 
 ```bash
 ./build-host/haltz_proto_tests
+```
+
+The same build makes `hzrun`, which runs HALTZ VM programs on the PC (`docs/vm-v1.md`).
+Assemble an example and run it:
+
+```bash
+python3 tools/hzasm.py tools/vm-examples/hello.s && ./build-host/hzrun tools/vm-examples/hello.hzp
+```
+
+Assembler tests (need the `hzrun` built above):
+
+```bash
+python3 tools/test_hzasm.py
 ```
 
 ## Flashing the debug probe (Pico 2 W #2)

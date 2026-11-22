@@ -1,0 +1,111 @@
+// HALTZ VM instruction set: the single list (docs/vm-v1.md section 4). Included by vm.h / vm.c
+// as an X-macro, and read by tools/hzasm.py.
+//
+// Format, one instruction per line, nothing else on the line:
+//   X(NAME, OPCODE, FORM)
+// NAME: upper-case identifier; the assembler mnemonic is NAME in lower case.
+// OPCODE: u8 in hex. FORM: operand layout (vm.h haltz_vm_form_t, vm-v1 section 3):
+//   N    1 byte   op
+//   R    2 bytes  op, rd<<4
+//   RR   2 bytes  op, rd<<4 | rs
+//   RQ   2 bytes  op, rd<<4 | q      q = signed -8..7
+//   RS   2 bytes  op, rd<<4 | n      n = unsigned 0..15 (shift count)
+//   RI8  3 bytes  op, rd<<4, u8
+//   RI16 4 bytes  op, rd<<4, u16
+//   RRO  3 bytes  op, rd<<4 | rb, off  off = signed -128..127
+//   RA   4 bytes  op, rd<<4, addr u16
+//   B8   2 bytes  op, rel              rel = signed, from the next instruction
+//   RB8  3 bytes  op, rd<<4, rel
+//   A16  3 bytes  op, addr u16
+//   U8   2 bytes  op, u8
+// Register nibbles 8-15 and a non-zero low nibble where the form has none are illegal.
+// Blank lines and lines starting with // are comments. Never reuse an opcode.
+
+// ---- control ----
+X(BRK, 0x00, N)
+X(NOP, 0x01, N)
+X(HALT, 0x02, N)
+X(RET, 0x03, N)
+
+// ---- register to register ----
+X(MOV, 0x10, RR)
+X(ADD, 0x11, RR)
+X(SUB, 0x12, RR)
+X(ADC, 0x13, RR)
+X(SBC, 0x14, RR)
+X(AND, 0x15, RR)
+X(OR, 0x16, RR)
+X(XOR, 0x17, RR)
+X(CMP, 0x18, RR)
+X(TST, 0x19, RR)
+X(SHL, 0x1A, RR)
+X(SHR, 0x1B, RR)
+X(SAR, 0x1C, RR)
+X(MUL, 0x1D, RR)
+X(DIVU, 0x1E, RR)
+X(MODU, 0x1F, RR)
+X(DIVS, 0x20, RR)
+X(MODS, 0x21, RR)
+
+// ---- one register ----
+X(NOT, 0x28, R)
+X(NEG, 0x29, R)
+X(SXB, 0x2A, R)
+X(ZXB, 0x2B, R)
+X(GETSP, 0x2C, R)
+X(SETSP, 0x2D, R)
+
+// ---- small immediates ----
+X(ADDQ, 0x30, RQ)
+X(CMPQ, 0x31, RQ)
+X(SHLQ, 0x32, RS)
+X(SHRQ, 0x33, RS)
+X(SARQ, 0x34, RS)
+X(MOVI8, 0x38, RI8)
+X(CMPI8, 0x39, RI8)
+
+// ---- 16-bit immediates ----
+X(MOVI, 0x40, RI16)
+X(ADDI, 0x41, RI16)
+X(CMPI, 0x42, RI16)
+X(ANDI, 0x43, RI16)
+X(ORI, 0x44, RI16)
+X(XORI, 0x45, RI16)
+
+// ---- memory ----
+X(LD, 0x48, RRO)
+X(LDB, 0x49, RRO)
+X(ST, 0x4A, RRO)
+X(STB, 0x4B, RRO)
+X(LDA, 0x4C, RA)
+X(LDBA, 0x4D, RA)
+X(STA, 0x4E, RA)
+X(STBA, 0x4F, RA)
+
+// ---- branches (relative) ----
+X(BRA, 0x50, B8)
+X(BEQ, 0x51, B8)
+X(BNE, 0x52, B8)
+X(BCS, 0x53, B8)
+X(BCC, 0x54, B8)
+X(BMI, 0x55, B8)
+X(BPL, 0x56, B8)
+X(BVS, 0x57, B8)
+X(BVC, 0x58, B8)
+X(BHI, 0x59, B8)
+X(BLS, 0x5A, B8)
+X(BLT, 0x5B, B8)
+X(BGE, 0x5C, B8)
+X(BGT, 0x5D, B8)
+X(BLE, 0x5E, B8)
+X(BSR, 0x5F, B8)
+
+// ---- jumps, calls, stack, system ----
+X(JMP, 0x60, A16)
+X(CALL, 0x61, A16)
+X(JMPR, 0x62, R)
+X(CALLR, 0x63, R)
+X(DBNZ, 0x64, RB8)
+X(PUSHM, 0x68, U8)
+X(POPM, 0x69, U8)
+X(SYS, 0x6A, U8)

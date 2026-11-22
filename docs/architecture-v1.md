@@ -48,7 +48,7 @@ The same parser runs on every board; each link has its own TYPE table. Command l
 - Core 0: system services as FreeRTOS tasks: GPU link, I/O link, cartridge service, storage (LittleFS on flash), power control, kernel event queue.
 - Core 1: the HALTZ VM only.
 - Kernel: single event queue, pointer logic, halt logic, program loader, syscall table.
-- HALTZ VM: a virtual CPU with its own instruction set. 16-bit address space (64 KB per program), dense bytecode so programs fit on a card, syscalls for video, sound, LED, input and cartridge save. The kernel checks a halt flag every N instructions, so a running program can always be stopped.
+- HALTZ VM: a virtual CPU with its own instruction set. 16-bit address space (64 KB per program), dense bytecode so programs fit on a card, syscalls for video, sound, LED, input and cartridge save. The kernel checks a halt flag every N instructions, so a running program can always be stopped. Defined in vm-v1.md (8 x 16-bit registers, 73 instructions of 1-4 bytes, 43 system calls).
 - Ways to halt: the S3's BOOT button (GPIO0, read as a normal input after boot; holding it while pressing RESET still enters flashing mode, as usual), a keyboard combo (TBD), pulling the cartridge, or the watchdog.
 - Halt opens the monitor: shows PC/registers/stack, allows single-step, resume, or back to the launcher (MENU = a keyboard key, TBD).
 
@@ -116,6 +116,7 @@ Status LED (RGB module, 3 PWM channels on one LEDC timer, ~5 kHz):
 - Programs can also set the LED by syscall.
 
 ## Cartridges: MIFARE Classic 1K (752 usable bytes)
+Exact header offsets, the CRC and the block map: vm-v1.md sections 7-8.
 Layout:
 - Sector 0, blocks 1-2 (32 B): header: magic "HZ", format version, cart type, title (up to 16 chars), program length, CRC16.
 - Sectors 1-13 (624 B): bytecode or data.

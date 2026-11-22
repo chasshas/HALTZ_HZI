@@ -14,6 +14,9 @@ sdkconfig
 sdkconfig.*
 !sdkconfig.defaults
 
+# HALTZ program images built from the examples (python3 tools/hzasm.py)
+*.hzp
+
 # Python
 tools/.venv/
 __pycache__/

@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "haltz/board_ids.h"
+#include "haltz/cart.h"
+#include "haltz/crc16.h"
 #include "haltz/crc8.h"
 #include "haltz/gpu.h"
 #include "haltz/gpu_msgs.h"
@@ -11,6 +13,7 @@
 #include "haltz/msgs.h"
 #include "haltz/packet.h"
 #include "haltz/proto.h"
+#include "haltz/vm.h"
 
 static int g_checks;
 static int g_fails;
@@ -1123,6 +1126,8 @@ static void test_io_stream(void) {
     CHECK(ev.last[3].type == HALTZ_MSG_IO_STICK_CAL && ev.last[3].len == 0);
 }
 
+#include "test_vm.inc"
+
 int main(void) {
     struct {
         const char *name;
@@ -1149,6 +1154,17 @@ int main(void) {
         {"I/O pack/unpack round trip, every message", test_io_roundtrip},
         {"I/O bad values, lengths, types, space", test_io_bad},
         {"I/O frames through encoder, decoder and idle flush", test_io_stream},
+        {"crc16 test vector", test_crc16_vector},
+        {"VM opcode and syscall tables", test_vm_tables},
+        {"VM ALU results and flags against a reference", test_vm_alu},
+        {"VM branch conditions after CMP", test_vm_branches},
+        {"VM small and 16-bit immediates", test_vm_immediates},
+        {"VM loads, stores, wrap-around", test_vm_memory},
+        {"VM stack, calls, jumps, DBNZ", test_vm_stack_calls},
+        {"VM faults and stop reasons", test_vm_stops},
+        {"VM system calls", test_vm_syscalls},
+        {"VM disassembler", test_vm_disasm},
+        {"cartridge header and block map", test_cart},
     };
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
         int before = g_fails;

@@ -1,0 +1,65 @@
+// HALTZ VM system calls: the single list (docs/vm-v1.md section 6). Included by vm.h / vm.c as
+// an X-macro, and read by tools/hzasm.py (`sys NAME`).
+//
+// Format, one call per line, nothing else on the line:
+//   X(NAME, NUMBER, ARGS, RESULTS)
+// NUMBER: u8 in hex, the operand of the SYS instruction. ARGS: arguments in R0, R1, ...
+// RESULTS: registers written, R0 first. A call writes only its result registers.
+// Video numbers equal the GPU message IDs, sound/LED numbers the I/O message IDs.
+// "colours" = fg | bg << 8. Commands return R0 = haltz_err_t (0 = OK).
+// Blank lines and lines starting with // are comments. Never reuse a number.
+
+// ---- system ----
+X(EXIT, 0x00, 1, 0)
+X(FRAME, 0x01, 0, 1)
+X(TIME_MS, 0x02, 0, 2)
+X(RANDOM, 0x03, 0, 1)
+X(SLEEP_MS, 0x04, 1, 0)
+
+// ---- console (the text layer used as a terminal) ----
+X(PUTC, 0x08, 1, 0)
+X(PRINT, 0x09, 1, 0)
+X(PRINT_NUM, 0x0A, 2, 0)
+X(CLS, 0x0B, 0, 0)
+X(LOCATE, 0x0C, 2, 0)
+X(COLOR, 0x0D, 1, 0)
+
+// ---- video (same numbers as the GPU messages) ----
+X(GFX_INIT, 0x10, 0, 1)
+X(BACKLIGHT, 0x13, 1, 1)
+X(LAYERS, 0x14, 1, 1)
+X(PALETTE, 0x15, 3, 1)
+X(TEXT_PUT, 0x18, 5, 1)
+X(TEXT_FILL, 0x19, 6, 1)
+X(TEXT_SCROLL, 0x1A, 5, 1)
+X(TEXT_CURSOR, 0x1B, 3, 1)
+X(FONT_LOAD, 0x1C, 3, 1)
+X(PATTERN_LOAD, 0x20, 2, 1)
+X(TILE_PUT, 0x21, 4, 1)
+X(TILE_FILL, 0x22, 5, 1)
+X(TILE_SCROLL, 0x23, 2, 1)
+X(SPRITE_SET, 0x28, 5, 1)
+X(BMP_PIXELS, 0x30, 4, 1)
+X(BMP_FILL, 0x31, 5, 1)
+X(BMP_LINE, 0x32, 5, 1)
+X(BMP_COPY, 0x33, 6, 1)
+
+// ---- input ----
+X(KEY_GET, 0x40, 0, 3)
+X(STICK, 0x41, 0, 3)
+X(KNOB, 0x42, 0, 1)
+X(KEY_HELD, 0x44, 1, 1)
+X(POINTER, 0x45, 0, 3)
+
+// ---- sound and LED (same numbers as the I/O messages) ----
+X(LED, 0x50, 6, 1)
+X(TONE, 0x51, 3, 1)
+X(NOTES, 0x52, 5, 1)
+X(SFX, 0x53, 2, 1)
+X(STOP, 0x54, 1, 1)
+X(VOLUME, 0x55, 2, 1)
+
+// ---- cartridge save area ----
+X(SAVE_READ, 0x60, 3, 1)
+X(SAVE_WRITE, 0x61, 3, 1)
+X(CART_INFO, 0x62, 0, 2)
