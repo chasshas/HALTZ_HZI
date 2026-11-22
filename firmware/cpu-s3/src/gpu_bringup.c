@@ -13,6 +13,8 @@
  *   t  start / stop the stress test: random valid commands of every kind, a PRESENT every
  *      16 ms. When it stops it checks crc_errors, rx_overruns and NAKs stayed 0, no reset
  *      happened, and every PRESENT got its FRAME pulse.
+ *   g  the demo scene (demo_scene.c, protocol section 9 step 5): every layer, driven from
+ *      here, with the frame rate measured on the S3. Any key goes back.
  */
 #include <inttypes.h>
 #include <stdarg.h>
@@ -28,6 +30,7 @@
 #include "sdkconfig.h"
 
 #include "console.h"
+#include "demo_scene.h"
 #include "gpu.h"
 #include "haltz/msgs.h"
 
@@ -77,7 +80,7 @@ static void draw_screen(void) {
     gpu_text_print(2, ROW_SEP, HALTZ_COLOR_YELLOW, 0, " log ");
     gpu_text_fill(0, ROW_KEYS, HALTZ_GPU_TEXT_COLS, 1, ' ', C_DIM, HALTZ_COLOR_DARK_BLUE);
     gpu_text_print(1, ROW_KEYS, C_DIM, HALTZ_COLOR_DARK_BLUE,
-                   "s stats  f 4/10 MHz  r reset  t stress");
+                   "s stats f MHz r reset t stress g demo");
 }
 
 static void update_screen(void) {
@@ -120,6 +123,22 @@ static void print_stats(void) {
     } else {
         printf("no GPU_STATUS yet\n");
     }
+}
+
+/* ---- other pictures take the screen ----------------------------------------------------- */
+
+/* While the stress test or the demo own the screen, the console keeps recording (con_hold);
+ * afterwards the bring-up screen and the log come back. */
+static void screen_take(void) {
+    con_hold(true);
+}
+
+static void screen_give_back(void) {
+    gpu_init_picture();
+    draw_screen();
+    update_screen();
+    con_hold(false); /* redraws the log */
+    gpu_present();
 }
 
 /* ---- stress test ------------------------------------------------------------------------- */
@@ -231,7 +250,7 @@ static void stress_begin(stress_t *t) {
     s_rng = esp_random() | 1u;
     printf("stress: starting, any key stops it\n");
     printf(" random commands, PRESENT every %d ms\n", STRESS_FRAME_MS);
-    con_hold(true); /* the test owns the screen; the console keeps recording */
+    screen_take();
     gpu_init_picture();
     gpu_layers(HALTZ_GPU_LAYERS_ALL);
     for (int i = 0; i < 16; i++) {
@@ -309,11 +328,53 @@ static void stress_end(stress_t *t) {
     printf(" MISO crc %" PRIu32 ", resets %" PRIu32 "\n", miso, resets);
     printf(" PRESENTs %" PRIu32 " / FRAMEs %" PRIu32 "\n", st.presents, st.frames);
     printf("stress: %s\n", pass ? "PASS" : "FAIL");
-    gpu_init_picture();
-    draw_screen();
-    update_screen();
-    con_hold(false); /* the log comes back */
-    gpu_present();
+    screen_give_back();
+}
+
+/* ---- demo -------------------------------------------------------------------------------- */
+
+static int read_key(void);
+
+static void demo_emit(const haltz_gpu_cmd_t *cmd, void *ctx) {
+    if (gpu_cmd(cmd) != HALTZ_OK) {
+        (*(uint32_t *)ctx)++; /* a bug in the scene: the driver refused the values */
+    }
+}
+
+static void demo_run(void) {
+    printf("demo: any key goes back\n");
+    screen_take();
+    uint32_t refused = 0;
+    gpu_stats_t st0;
+    gpu_get_stats(&st0);
+    demo_scene_init(demo_emit, &refused);
+
+    int64_t start = now_ms(), next_second = start + 1000;
+    uint32_t frame = 0, this_second = 0;
+    int fps = -1;
+    while (read_key() == EOF) {
+        demo_scene_step(++frame, fps, demo_emit, &refused);
+        fps = -1;
+        gpu_present(); /* waits while the previous frame is on its way: that is the pace */
+        this_second++;
+        if (now_ms() >= next_second) {
+            fps = (int)this_second; /* shown with the next frame */
+            this_second = 0;
+            next_second += 1000;
+        }
+        vTaskDelay(1);
+    }
+    gpu_vsync(500);
+    gpu_stats_t st;
+    gpu_get_stats(&st);
+    uint32_t ms = (uint32_t)(now_ms() - start);
+    printf("demo: %" PRIu32 " frames in %" PRIu32 ".%" PRIu32 " s\n", frame, ms / 1000,
+           ms % 1000 / 100);
+    printf(" %" PRIu32 " fps, %" PRIu64 " KB sent\n", ms ? frame * 1000u / ms : 0,
+           (st.tx_bytes - st0.tx_bytes) / 1024);
+    printf(" refused %" PRIu32 ", NAKs %" PRIu32 ", resets %" PRIu32 "\n", refused,
+           st.naks - st0.naks, st.resets - st0.resets);
+    screen_give_back();
 }
 
 /* ---- main loop --------------------------------------------------------------------------- */
@@ -361,7 +422,7 @@ void gpu_bringup_run(void) {
     if (gpu_wait_up(8000)) {
         print_stats();
     }
-    printf("keys: s stats, f 4/10 MHz, r reset GPU,\n      t stress test\n");
+    printf("keys: s stats, f 4/10 MHz, r reset GPU,\n      t stress test, g demo\n");
 
     stress_t stress = {0};
     int64_t next_update = 0;
@@ -390,12 +451,15 @@ void gpu_bringup_run(void) {
         case 't':
             stress_begin(&stress);
             break;
+        case 'g':
+            demo_run();
+            break;
         case EOF:
         case '\r':
         case '\n':
             break;
         default:
-            printf("keys: s stats, f 4/10 MHz, r reset GPU,\n      t stress test\n");
+            printf("keys: s stats, f 4/10 MHz, r reset GPU,\n      t stress test, g demo\n");
             break;
         }
 

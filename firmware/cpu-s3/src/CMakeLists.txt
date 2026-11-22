@@ -2,7 +2,7 @@
 # for its shadow copy of the GPU picture (docs/gpu-protocol-v1.md sections 2 and 6).
 idf_component_register(SRCS "main.c" "wiring_test.c"
                             "gpu.c" "gpu_replay.c" "gpu_bringup.c"
-                            "console.c" "con_term.c"
+                            "console.c" "con_term.c" "demo_scene.c"
                             "../../gpu-pico/src/gpu_state.c"
                        INCLUDE_DIRS "../include"
                        REQUIRES haltz_proto esp_psram spi_flash esp_partition esp_timer vfs
