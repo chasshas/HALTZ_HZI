@@ -36,9 +36,9 @@
 extern "C" {
 #endif
 
-/* SPI clock at boot. Bring-up order (protocol section 9): 4 MHz first, 10 MHz after the
- * stress test passes (gpu_set_spi_hz). */
-#define GPU_SPI_HZ_BOOT HALTZ_GPU_SPI_HZ_START
+/* SPI clock at boot. The stress test passed at 10 MHz on the boards (2026-11-22). If the link
+ * ever misbehaves (new wiring), go back to HALTZ_GPU_SPI_HZ_START (4 MHz). */
+#define GPU_SPI_HZ_BOOT HALTZ_GPU_SPI_HZ_MAX
 
 typedef enum {
     GPU_LINK_RESET,     /* holding / releasing the Pico's RUN line */

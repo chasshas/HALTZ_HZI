@@ -18,8 +18,10 @@
  *     sectors of the "storage" partition. With code executing from PSRAM
  *     (CONFIG_SPIRAM_XIP_FROM_PSRAM) core 1 must keep running during the flash writes.
  *
- * Then the GPU driver (gpu.c) starts, and the bring-up screen runs on the TFT with a small
- * console on the S3 port (docs/gpu-protocol-v1.md section 9, steps 2-4).
+ * Everything printed also appears on the TFT (console.c): stdout is teed first thing, the GPU
+ * driver (gpu.c) and the console task start right after the banner, so the self-test lines
+ * show on the screen. Then the bring-up screen runs (gpu_bringup.c, docs/gpu-protocol-v1.md
+ * section 9).
  */
 #include <inttypes.h>
 #include <stdbool.h>
@@ -38,6 +40,8 @@
 #include "freertos/task.h"
 
 #include "board_pins.h"
+#include "console.h"
+#include "gpu.h"
 #include "haltz/board_ids.h"
 #include "haltz/msgs.h"
 #include "haltz/packet.h"
@@ -58,11 +62,11 @@
 
 static void print_banner(void) {
     printf("\n");
-    printf("==========================================\n");
+    printf("========================================\n");
     printf(" HALTZ CPU\n");
     printf(" protocol v%u, git %s, ESP-IDF %s\n", (unsigned)HALTZ_PROTO_VERSION, HALTZ_GIT_HASH,
            esp_get_idf_version());
-    printf("==========================================\n");
+    printf("========================================\n");
 }
 
 static void print_system_info(void) {
@@ -298,7 +302,7 @@ static bool xip_test(void) {
 #ifdef HALTZ_WIRING_TEST
 void haltz_wiring_test(void); /* wiring_test.c, never returns */
 #endif
-void gpu_bringup_run(void); /* gpu_bringup.c, returns only if the GPU driver can't start */
+void gpu_bringup_run(void); /* gpu_bringup.c, never returns */
 
 /* Own task: app_main's stack (3584 bytes) is too small for the bring-up console. Core 0 with
  * the other system services (architecture-v1); the stack is internal RAM. */
@@ -309,11 +313,27 @@ static void console_task(void *arg) {
 }
 
 void app_main(void) {
+    esp_err_t con_err = con_early_init(); /* from here on, output is kept for the TFT */
     print_banner();
+    if (con_err != ESP_OK) {
+        printf("console: no stdout tee (%s), output on the serial ports only\n",
+               esp_err_to_name(con_err));
+    }
     print_system_info();
 #ifdef HALTZ_WIRING_TEST
     haltz_wiring_test();
 #endif
+
+    /* The GPU handshake runs in the background; drawing before the link is up goes into the
+     * driver's shadow and is shown at link-up. The boot log gets the whole screen. */
+    esp_err_t err = gpu_start();
+    if (err != ESP_OK) {
+        printf("gpu: driver did not start: %s\n", esp_err_to_name(err));
+    }
+    err = con_start(0, HALTZ_GPU_TEXT_ROWS);
+    if (err != ESP_OK) {
+        printf("console: task did not start: %s\n", esp_err_to_name(err));
+    }
 
     bool hello_ok = hello_self_test();
     printf("HELLO encode/decode: %s\n", hello_ok ? "OK" : "FAIL");
