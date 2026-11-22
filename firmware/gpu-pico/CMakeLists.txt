@@ -23,14 +23,28 @@ pico_sdk_init()
 
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../shared/haltz_proto haltz_proto)
 
-add_executable(haltz_gpu src/main.c)
+# The GPU firmware (docs/gpu-protocol-v1.md). gpu_state/gpu_render/gpu_scenes are portable
+# C with PC tests in test/ (they build without the Pico SDK).
+add_executable(haltz_gpu
+    src/main.c
+    src/link.c
+    src/tft.c
+    src/gpu_state.c
+    src/gpu_render.c
+    src/gpu_scenes.c)
 target_compile_options(haltz_gpu PRIVATE -Wall -Wextra)
+target_compile_definitions(haltz_gpu PRIVATE
+    PICO_STACK_SIZE=0x1000                 # core 0: 4 KB
+    GPU_RENDER_IN_RAM=1                    # gpu_render.c runs from RAM, not the flash cache
+    PICO_STDIO_USB_STDOUT_TIMEOUT_US=2000) # a stalled terminal must not stall the link
 target_link_libraries(haltz_gpu
     pico_stdlib pico_multicore
-    hardware_spi hardware_dma hardware_pio hardware_pwm
+    hardware_spi hardware_dma hardware_irq hardware_sync hardware_pwm
     haltz_proto)
-pico_enable_stdio_uart(haltz_gpu 1)   # UART0 on GP0/GP1 goes to the debug probe
-pico_enable_stdio_usb(haltz_gpu 0)
+# Console on both: the board's own USB port (no extra wires; also lets picotool reboot it
+# into BOOTSEL for flashing) and UART0 on GP0/GP1 (for a debug probe, if one is wired).
+pico_enable_stdio_uart(haltz_gpu 1)
+pico_enable_stdio_usb(haltz_gpu 1)
 pico_add_extra_outputs(haltz_gpu)
 
 # First 8 hex chars of the git commit, or "00000000" without git.

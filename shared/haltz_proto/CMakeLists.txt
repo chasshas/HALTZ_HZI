@@ -8,7 +8,7 @@
 # Firmware projects can include(cmake/haltz_git_hash.cmake) to get the build's git hash.
 
 if(ESP_PLATFORM)
-  idf_component_register(SRCS src/packet.c src/crc8.c src/msgs.c
+  idf_component_register(SRCS src/packet.c src/crc8.c src/msgs.c src/gpu_msgs.c src/gpu_tables.c
                          INCLUDE_DIRS include)
 else()
   cmake_minimum_required(VERSION 3.13)
@@ -16,7 +16,7 @@ else()
     project(haltz_proto C)  # standalone PC build
   endif()
 
-  add_library(haltz_proto STATIC src/packet.c src/crc8.c src/msgs.c)
+  add_library(haltz_proto STATIC src/packet.c src/crc8.c src/msgs.c src/gpu_msgs.c src/gpu_tables.c)
   target_include_directories(haltz_proto PUBLIC include)
   set_target_properties(haltz_proto PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
   target_compile_options(haltz_proto PRIVATE -Wall -Wextra)

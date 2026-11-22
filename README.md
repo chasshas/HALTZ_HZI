@@ -131,6 +131,54 @@ cmake --build firmware/gpu-pico/build
 Without the extension, set `PICO_SDK_PATH` to your SDK checkout first. The output is
 `firmware/gpu-pico/build/haltz_gpu.uf2` (plus `.elf` for the debug probe).
 
+The GPU firmware implements `docs/gpu-protocol-v1.md`. After flashing it, the TFT shows a
+boot screen (version, a row of colour blocks to check the panel colours, "waiting for
+CPU...").
+
+Flashing Pico #1 over its own USB cable (no debug probe needed). The first time, the board
+still runs firmware without USB, so hold **BOOTSEL** while plugging it in, then:
+
+```bash
+~/.pico-sdk/picotool/2.3.1/picotool/picotool load -x firmware/gpu-pico/build/haltz_gpu.uf2
+```
+
+(or drag the `.uf2` onto the `RP2350` drive). After that the GPU firmware itself lets picotool
+restart it into BOOTSEL, so updates need no button: add `-f`.
+
+```bash
+~/.pico-sdk/picotool/2.3.1/picotool/picotool load -f -x firmware/gpu-pico/build/haltz_gpu.uf2
+```
+
+Console: the same USB cable is a serial port (`/dev/cu.usbmodem…`; the S3's native USB is one
+too, so compare `ls /dev/cu.usbmodem*` with Pico #1 unplugged and plugged in). The same
+console also comes out on UART0 (GP0/GP1) for a debug probe, if one is ever wired.
+
+```bash
+~/.platformio/penv/bin/pio device monitor -p /dev/cu.usbmodemXXXX -b 115200
+```
+
+Opening the port prints the banner. Keys work without Enter: `d` runs a demo that uses every
+layer (bitmap, scrolling tiles, sprites, text, blinking cursor; any key stops it), `s` prints
+the link counters, `v` the banner again. Ctrl+C quits the monitor. The panel settings (`TFT_SPI_HZ`, `TFT_MADCTL`, `TFT_INVERT`, `TFT_BGR`) are at the
+top of `firmware/gpu-pico/src/tft.h`. If the picture is garbled but the wiring test looked
+fine, lower `TFT_SPI_HZ` (the real firmware runs the panel at 37.5 MHz, the wiring test at
+15 MHz).
+
+The GPU's picture state and renderer also build on the PC, with tests that check pixels and
+write PNG pictures of the boot screen and a demo frame:
+
+```bash
+cmake -S firmware/gpu-pico/test -B build-gpu-test
+```
+
+```bash
+cmake --build build-gpu-test
+```
+
+```bash
+./build-gpu-test/gpu_render_tests build-gpu-test
+```
+
 Each firmware embeds the first 8 hex characters of the current git commit in its HELLO
 message, or `00000000` if git isn't available.
 

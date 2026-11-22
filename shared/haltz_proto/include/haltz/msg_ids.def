@@ -1,9 +1,47 @@
 // HALTZ message types: the single list. Included by msgs.h / msgs.c as an X-macro.
 //
 // Format, one message per line, nothing else on the line:
-//   X(NAME, ID, PAYLOAD_LEN)
-// NAME: upper-case identifier. ID: u8 in hex (0x01..0xFF). PAYLOAD_LEN: exact payload size
-// in bytes, decimal (0..255). Lines starting with // are comments. Never reuse an ID.
-X(HELLO, 0x01, 7)
-X(ACK, 0x02, 1)
-X(NAK, 0x03, 2)
+//   X(NAME, ID, MIN_LEN, MAX_LEN)
+// NAME: upper-case identifier. ID: u8 in hex (0x01..0xFF). MIN_LEN, MAX_LEN: allowed payload
+// size in bytes, decimal (0..255); equal for fixed-size messages. Finer rules (odd length,
+// multiple of 8, ...) are checked by the message's unpack function. Blank lines and lines
+// starting with // are comments. Never reuse an ID.
+//
+// ID ranges: 0x01-0x0F every link, 0x10-0x3F GPU link (docs/gpu-protocol-v1.md),
+// 0x40-0x6F reserved for the I/O link.
+
+// ---- every link ----
+X(HELLO, 0x01, 7, 7)
+X(ACK, 0x02, 1, 1)
+X(NAK, 0x03, 2, 2)
+
+// ---- GPU link, S3 -> GPU: control ----
+X(GPU_INIT, 0x10, 0, 0)
+X(GPU_PRESENT, 0x11, 2, 2)
+X(GPU_STATUS_REQ, 0x12, 0, 0)
+X(GPU_BACKLIGHT, 0x13, 1, 1)
+X(GPU_LAYERS, 0x14, 1, 1)
+X(GPU_PALETTE, 0x15, 3, 255)
+
+// ---- GPU link, S3 -> GPU: text layer ----
+X(GPU_TEXT_PUT, 0x18, 5, 255)
+X(GPU_TEXT_FILL, 0x19, 7, 7)
+X(GPU_TEXT_SCROLL, 0x1A, 6, 6)
+X(GPU_TEXT_CURSOR, 0x1B, 3, 3)
+X(GPU_FONT_LOAD, 0x1C, 9, 249)
+
+// ---- GPU link, S3 -> GPU: patterns, tile layer, sprites ----
+X(GPU_PATTERN_LOAD, 0x20, 129, 129)
+X(GPU_TILE_PUT, 0x21, 4, 254)
+X(GPU_TILE_FILL, 0x22, 6, 6)
+X(GPU_TILE_SCROLL, 0x23, 4, 4)
+X(GPU_SPRITE_SET, 0x28, 7, 7)
+
+// ---- GPU link, S3 -> GPU: bitmap layer ----
+X(GPU_BMP_PIXELS, 0x30, 5, 255)
+X(GPU_BMP_FILL, 0x31, 9, 9)
+X(GPU_BMP_LINE, 0x32, 9, 9)
+X(GPU_BMP_COPY, 0x33, 12, 12)
+
+// ---- GPU link, GPU -> S3 ----
+X(GPU_STATUS, 0x3F, 18, 18)

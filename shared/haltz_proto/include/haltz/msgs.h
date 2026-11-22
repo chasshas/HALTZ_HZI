@@ -18,21 +18,27 @@ extern "C" {
 
 /* HALTZ_MSG_HELLO = 0x01, ... */
 typedef enum {
-#define X(name, id, len) HALTZ_MSG_##name = (id),
+#define X(name, id, min_len, max_len) HALTZ_MSG_##name = (id),
 #include "haltz/msg_ids.def"
 #undef X
 } haltz_msg_id_t;
 
-/* HALTZ_MSG_HELLO_LEN = 7, ... (exact payload sizes) */
+/*
+ * Payload sizes: HALTZ_MSG_x_MIN_LEN and HALTZ_MSG_x_MAX_LEN.
+ * HALTZ_MSG_x_LEN = MAX_LEN: the buffer size a payload needs, and the exact size of a
+ * fixed-size message (MIN = MAX), e.g. HALTZ_MSG_HELLO_LEN = 7.
+ */
 enum {
-#define X(name, id, len) HALTZ_MSG_##name##_LEN = (len),
+#define X(name, id, min_len, max_len)                                                          \
+    HALTZ_MSG_##name##_MIN_LEN = (min_len), HALTZ_MSG_##name##_MAX_LEN = (max_len),           \
+    HALTZ_MSG_##name##_LEN = (max_len),
 #include "haltz/msg_ids.def"
 #undef X
 };
 
 /* Number of message types in msg_ids.def. */
 enum {
-#define X(name, id, len) HALTZ_MSG_IDX_##name,
+#define X(name, id, min_len, max_len) HALTZ_MSG_IDX_##name,
 #include "haltz/msg_ids.def"
 #undef X
     HALTZ_MSG_COUNT
@@ -41,12 +47,16 @@ enum {
 /* Tables in msg_ids.def order, index 0..HALTZ_MSG_COUNT-1. */
 extern const uint8_t haltz_msg_ids[HALTZ_MSG_COUNT];
 extern const char *const haltz_msg_names[HALTZ_MSG_COUNT];
-extern const uint8_t haltz_msg_payload_lens[HALTZ_MSG_COUNT];
+extern const uint8_t haltz_msg_min_lens[HALTZ_MSG_COUNT];
+extern const uint8_t haltz_msg_max_lens[HALTZ_MSG_COUNT];
 
 /* Lookups by wire ID. */
-const char *haltz_msg_name(uint8_t id);         /* "HELLO", or "?" if unknown */
-int haltz_msg_payload_len(uint8_t id);          /* exact length, or -1 if unknown */
-haltz_err_t haltz_msg_check(uint8_t id, size_t len); /* OK, UNKNOWN_TYPE or BAD_LEN */
+const char *haltz_msg_name(uint8_t id);   /* "HELLO", or "?" if unknown */
+int haltz_msg_min_len(uint8_t id);        /* smallest allowed payload, or -1 if unknown */
+int haltz_msg_max_len(uint8_t id);        /* largest allowed payload, or -1 if unknown */
+/* OK, UNKNOWN_TYPE, or BAD_LEN if len is outside MIN_LEN..MAX_LEN. Finer length rules
+ * (odd length, multiple of 8, ...) are checked by the message's unpack function. */
+haltz_err_t haltz_msg_check(uint8_t id, size_t len);
 
 /* ---- HELLO (0x01): first message each board sends after boot -------------------------- */
 /* Payload: board_id u8 | proto_version u16 LE | git_hash 4 bytes (first 8 hex chars). */

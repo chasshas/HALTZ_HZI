@@ -16,8 +16,9 @@
 extern "C" {
 #endif
 
-/* Bump when the frame format or an existing message's layout changes. */
-#define HALTZ_PROTO_VERSION 1u
+/* Bump when the frame format or an existing message's layout changes, or a link gets a new
+ * message set. v2: GPU link messages (docs/gpu-protocol-v1.md). */
+#define HALTZ_PROTO_VERSION 2u
 
 #define HALTZ_SYNC           0xA5u
 #define HALTZ_MAX_PAYLOAD    255u /* LEN is a u8 */

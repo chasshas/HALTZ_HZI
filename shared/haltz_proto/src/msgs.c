@@ -1,27 +1,37 @@
 #include "haltz/msgs.h"
 
+#include "wire.h"
+
 /* ---- tables generated from msg_ids.def ------------------------------------------------- */
 
-#define X(name, id, len)                                                                       \
+#define X(name, id, min_len, max_len)                                                          \
     _Static_assert((id) >= 0x01 && (id) <= 0xFF, "msg " #name ": ID must be 0x01..0xFF");     \
-    _Static_assert((len) >= 0 && (len) <= HALTZ_MAX_PAYLOAD, "msg " #name ": bad PAYLOAD_LEN");
+    _Static_assert((min_len) >= 0 && (min_len) <= (max_len) &&                                 \
+                       (max_len) <= HALTZ_MAX_PAYLOAD,                                         \
+                   "msg " #name ": need 0 <= MIN_LEN <= MAX_LEN <= 255");
 #include "haltz/msg_ids.def"
 #undef X
 
 const uint8_t haltz_msg_ids[HALTZ_MSG_COUNT] = {
-#define X(name, id, len) (id),
+#define X(name, id, min_len, max_len) (id),
 #include "haltz/msg_ids.def"
 #undef X
 };
 
 const char *const haltz_msg_names[HALTZ_MSG_COUNT] = {
-#define X(name, id, len) #name,
+#define X(name, id, min_len, max_len) #name,
 #include "haltz/msg_ids.def"
 #undef X
 };
 
-const uint8_t haltz_msg_payload_lens[HALTZ_MSG_COUNT] = {
-#define X(name, id, len) (len),
+const uint8_t haltz_msg_min_lens[HALTZ_MSG_COUNT] = {
+#define X(name, id, min_len, max_len) (min_len),
+#include "haltz/msg_ids.def"
+#undef X
+};
+
+const uint8_t haltz_msg_max_lens[HALTZ_MSG_COUNT] = {
+#define X(name, id, min_len, max_len) (max_len),
 #include "haltz/msg_ids.def"
 #undef X
 };
@@ -29,7 +39,7 @@ const uint8_t haltz_msg_payload_lens[HALTZ_MSG_COUNT] = {
 /* A duplicate ID in msg_ids.def becomes a duplicate case label: a compile error. */
 static int msg_index(uint8_t id) {
     switch (id) {
-#define X(name, id, len)                                                                       \
+#define X(name, id, min_len, max_len)                                                          \
     case (id):                                                                                 \
         return HALTZ_MSG_IDX_##name;
 #include "haltz/msg_ids.def"
@@ -44,39 +54,26 @@ const char *haltz_msg_name(uint8_t id) {
     return (i < 0) ? "?" : haltz_msg_names[i];
 }
 
-int haltz_msg_payload_len(uint8_t id) {
+int haltz_msg_min_len(uint8_t id) {
     int i = msg_index(id);
-    return (i < 0) ? -1 : haltz_msg_payload_lens[i];
+    return (i < 0) ? -1 : haltz_msg_min_lens[i];
+}
+
+int haltz_msg_max_len(uint8_t id) {
+    int i = msg_index(id);
+    return (i < 0) ? -1 : haltz_msg_max_lens[i];
 }
 
 haltz_err_t haltz_msg_check(uint8_t id, size_t len) {
-    int expected = haltz_msg_payload_len(id);
-    if (expected < 0) {
+    int i = msg_index(id);
+    if (i < 0) {
         return HALTZ_ERR_UNKNOWN_TYPE;
     }
-    return ((size_t)expected == len) ? HALTZ_OK : HALTZ_ERR_BAD_LEN;
+    return (len >= haltz_msg_min_lens[i] && len <= haltz_msg_max_lens[i]) ? HALTZ_OK
+                                                                          : HALTZ_ERR_BAD_LEN;
 }
 
-/* ---- little-endian byte helpers -------------------------------------------------------- */
-
-static void put_u8(uint8_t *buf, size_t *pos, uint8_t v) {
-    buf[(*pos)++] = v;
-}
-
-static void put_u16le(uint8_t *buf, size_t *pos, uint16_t v) {
-    buf[(*pos)++] = (uint8_t)(v & 0xFFu);
-    buf[(*pos)++] = (uint8_t)(v >> 8);
-}
-
-static uint8_t get_u8(const uint8_t *buf, size_t *pos) {
-    return buf[(*pos)++];
-}
-
-static uint16_t get_u16le(const uint8_t *buf, size_t *pos) {
-    uint16_t v = (uint16_t)buf[*pos] | (uint16_t)((uint16_t)buf[*pos + 1] << 8);
-    *pos += 2;
-    return v;
-}
+/* ---- pack/unpack helpers --------------------------------------------------------------- */
 
 static haltz_err_t check_pack(const void *msg, const uint8_t *buf, size_t cap, size_t need) {
     if (msg == NULL || buf == NULL) {
