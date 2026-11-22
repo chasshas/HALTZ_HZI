@@ -6,6 +6,8 @@
 #include "haltz/crc8.h"
 #include "haltz/gpu.h"
 #include "haltz/gpu_msgs.h"
+#include "haltz/io.h"
+#include "haltz/io_msgs.h"
 #include "haltz/msgs.h"
 #include "haltz/packet.h"
 #include "haltz/proto.h"
@@ -78,7 +80,7 @@ static void test_crc8_vector(void) {
 }
 
 static void test_msg_tables(void) {
-    CHECK(HALTZ_MSG_COUNT == 24);
+    CHECK(HALTZ_MSG_COUNT == 37);
     CHECK(HALTZ_MSG_HELLO == 0x01 && HALTZ_MSG_ACK == 0x02 && HALTZ_MSG_NAK == 0x03);
     CHECK(HALTZ_MSG_HELLO_LEN == 7 && HALTZ_MSG_ACK_LEN == 1 && HALTZ_MSG_NAK_LEN == 2);
     CHECK(HALTZ_MSG_HELLO_MIN_LEN == 7 && HALTZ_MSG_HELLO_MAX_LEN == 7);
@@ -99,8 +101,11 @@ static void test_gpu_msg_table(void) {
     /* Every GPU_* message sits in the GPU range, everything else in the common range. */
     for (int i = 0; i < HALTZ_MSG_COUNT; i++) {
         int is_gpu = strncmp(haltz_msg_names[i], "GPU_", 4) == 0;
+        int is_io = strncmp(haltz_msg_names[i], "IO_", 3) == 0;
         if (is_gpu) {
             CHECK(haltz_msg_ids[i] >= 0x10 && haltz_msg_ids[i] <= 0x3F);
+        } else if (is_io) {
+            CHECK(haltz_msg_ids[i] >= 0x40 && haltz_msg_ids[i] <= 0x6F);
         } else {
             CHECK(haltz_msg_ids[i] >= 0x01 && haltz_msg_ids[i] <= 0x0F);
         }
@@ -803,6 +808,321 @@ static void test_gpu_tables(void) {
     }
 }
 
+/* ---- I/O link (docs/io-protocol-v1.md) --------------------------------------------------- */
+
+static void test_io_msg_table(void) {
+    CHECK(HALTZ_PROTO_VERSION == 3);
+    /* I/O board -> S3 in 0x40-0x4F, S3 -> I/O board in 0x50-0x6F. */
+    const uint8_t up[] = {HALTZ_MSG_IO_KEYS, HALTZ_MSG_IO_STICK, HALTZ_MSG_IO_KNOB,
+                          HALTZ_MSG_IO_DEVICE, HALTZ_MSG_IO_STATUS};
+    const uint8_t down[] = {HALTZ_MSG_IO_LED,     HALTZ_MSG_IO_TONE,   HALTZ_MSG_IO_NOTES,
+                            HALTZ_MSG_IO_SFX,     HALTZ_MSG_IO_STOP,   HALTZ_MSG_IO_VOLUME,
+                            HALTZ_MSG_IO_STICK_CAL, HALTZ_MSG_IO_BT};
+    for (size_t i = 0; i < sizeof(up); i++) {
+        CHECK(up[i] >= 0x40 && up[i] <= 0x4F);
+    }
+    for (size_t i = 0; i < sizeof(down); i++) {
+        CHECK(down[i] >= 0x50 && down[i] <= 0x6F);
+    }
+    CHECK(HALTZ_MSG_IO_KEYS_MIN_LEN == 1 && HALTZ_MSG_IO_KEYS_MAX_LEN == 11);
+    CHECK(HALTZ_MSG_IO_STICK_LEN == 5 && HALTZ_MSG_IO_KNOB_LEN == 1);
+    CHECK(HALTZ_MSG_IO_DEVICE_LEN == 8 && HALTZ_MSG_IO_STATUS_LEN == 16);
+    CHECK(HALTZ_MSG_IO_LED_LEN == 7 && HALTZ_MSG_IO_TONE_LEN == 5);
+    CHECK(HALTZ_MSG_IO_NOTES_MIN_LEN == 5 && HALTZ_MSG_IO_NOTES_MAX_LEN == 3 + 2 * 126);
+    CHECK(HALTZ_MSG_IO_SFX_LEN == 2 && HALTZ_MSG_IO_STOP_LEN == 1);
+    CHECK(HALTZ_MSG_IO_VOLUME_LEN == 2 && HALTZ_MSG_IO_STICK_CAL_LEN == 0);
+    CHECK(HALTZ_MSG_IO_BT_LEN == 1);
+    CHECK(strcmp(haltz_msg_name(0x4F), "IO_STATUS") == 0);
+    CHECK(strcmp(haltz_msg_name(0x57), "IO_BT") == 0);
+    CHECK(haltz_msg_check(HALTZ_MSG_IO_KEYS, 0) == HALTZ_ERR_BAD_LEN);
+    CHECK(haltz_msg_check(HALTZ_MSG_IO_KEYS, 12) == HALTZ_ERR_BAD_LEN);
+    CHECK(HALTZ_IO_SFX_COUNT == 13);
+    /* The longest frame fits the decoder and the idle-flush time is far above a byte time. */
+    CHECK(HALTZ_MSG_IO_NOTES_MAX_LEN + HALTZ_FRAME_OVERHEAD <= HALTZ_MAX_FRAME);
+    CHECK(HALTZ_IO_IDLE_FLUSH_MS * HALTZ_IO_BAUD / 10 / 1000 > 50); /* > 50 byte times */
+}
+
+static void test_io_wire_layout(void) {
+    uint8_t b[HALTZ_MAX_PAYLOAD];
+    size_t n = 0;
+
+    haltz_io_stick_t st = {.x = -2, .y = 1000, .buttons = HALTZ_IO_BTN_STICK};
+    CHECK(haltz_io_stick_pack(&st, b, sizeof(b), &n) == HALTZ_OK && n == 5);
+    CHECK(b[0] == 0xFE && b[1] == 0xFF && b[2] == 0xE8 && b[3] == 0x03 && b[4] == 0x01);
+
+    haltz_io_keys_t k = {.modifiers = HALTZ_IO_MOD_LSHIFT, .count = 2, .usages = {0x04, 0x2C}};
+    CHECK(haltz_io_keys_pack(&k, b, sizeof(b), &n) == HALTZ_OK && n == 3);
+    CHECK(b[0] == 0x02 && b[1] == 0x04 && b[2] == 0x2C);
+
+    haltz_io_led_t led = {.mode = HALTZ_IO_LED_CODE, .r = 255, .g = 1, .b = 2,
+                          .period_ms = 0x1234, .count = 3};
+    CHECK(haltz_io_led_pack(&led, b, sizeof(b), &n) == HALTZ_OK && n == 7);
+    CHECK(b[0] == 5 && b[1] == 255 && b[2] == 1 && b[3] == 2 && b[4] == 0x34 && b[5] == 0x12 &&
+          b[6] == 3);
+
+    haltz_io_notes_t nt = {.voice = 1, .flags = HALTZ_IO_NOTES_REPLACE | HALTZ_IO_NOTES_LOOP,
+                           .tick_ms = 50, .count = 2,
+                           .notes = {{.note = 69, .ticks = 4}, {.note = 0, .ticks = 1}}};
+    CHECK(haltz_io_notes_pack(&nt, b, sizeof(b), &n) == HALTZ_OK && n == 7);
+    CHECK(b[0] == 1 && b[1] == 3 && b[2] == 50 && b[3] == 69 && b[4] == 4 && b[5] == 0 &&
+          b[6] == 1);
+
+    haltz_io_status_t s = {.uptime_ms = 0x01020304, .rx_frames = 0x0506, .crc_errors = 7,
+                           .cmd_errors = 8, .rx_overruns = 9, .flags = 0x11, .devices = 0x01,
+                           .tune_free = {255, 10}};
+    CHECK(haltz_io_status_pack(&s, b, sizeof(b), &n) == HALTZ_OK && n == 16);
+    const uint8_t want[16] = {0x04, 0x03, 0x02, 0x01, 0x06, 0x05, 7, 0, 8, 0, 9, 0,
+                              0x11, 0x01, 255,  10};
+    CHECK(memcmp(b, want, 16) == 0);
+
+    haltz_io_device_t d = {.slot = 3, .state = 1, .kind = HALTZ_IO_DEV_KEYBOARD, .battery = 200,
+                           .vendor_id = 0xABCD, .product_id = 0x0102};
+    CHECK(haltz_io_device_pack(&d, b, sizeof(b), &n) == HALTZ_OK && n == 8);
+    CHECK(b[0] == 3 && b[1] == 1 && b[2] == 1 && b[3] == 200 && b[4] == 0xCD && b[5] == 0xAB &&
+          b[6] == 0x02 && b[7] == 0x01);
+}
+
+static void test_io_roundtrip(void) {
+    uint8_t b[HALTZ_MAX_PAYLOAD];
+    size_t n = 0;
+
+    haltz_io_keys_t k = {.modifiers = 0xA5, .count = 10,
+                         .usages = {4, 5, 6, 7, 0x28, 0x2C, 0x3A, 0x4F, 0x52, 0xDF}};
+    haltz_io_keys_t k2;
+    CHECK(haltz_io_keys_pack(&k, b, sizeof(b), &n) == HALTZ_OK && n == 11);
+    CHECK(haltz_io_keys_unpack(&k2, b, n) == HALTZ_OK);
+    CHECK(k2.modifiers == 0xA5 && k2.count == 10 && memcmp(k2.usages, k.usages, 10) == 0);
+    haltz_io_keys_t none = {.modifiers = HALTZ_IO_MOD_RCTRL, .count = 0};
+    CHECK(haltz_io_keys_pack(&none, b, sizeof(b), &n) == HALTZ_OK && n == 1);
+    CHECK(haltz_io_keys_unpack(&k2, b, n) == HALTZ_OK && k2.count == 0 && k2.modifiers == 0x10);
+
+    haltz_io_stick_t st = {.x = -1000, .y = 345, .buttons = HALTZ_IO_BTN_ALL}, st2;
+    CHECK(haltz_io_stick_pack(&st, b, sizeof(b), &n) == HALTZ_OK);
+    CHECK(haltz_io_stick_unpack(&st2, b, n) == HALTZ_OK);
+    CHECK(st2.x == -1000 && st2.y == 345 && st2.buttons == 3);
+
+    haltz_io_knob_t kn = {.value = 200}, kn2;
+    CHECK(haltz_io_knob_pack(&kn, b, sizeof(b), &n) == HALTZ_OK);
+    CHECK(haltz_io_knob_unpack(&kn2, b, n) == HALTZ_OK && kn2.value == 200);
+
+    haltz_io_status_t s = {.uptime_ms = 123456789u, .rx_frames = 65535, .flags = 0x1F,
+                           .devices = 0x0F, .tune_free = {1, 2}}, s2;
+    CHECK(haltz_io_status_pack(&s, b, sizeof(b), &n) == HALTZ_OK);
+    CHECK(haltz_io_status_unpack(&s2, b, n) == HALTZ_OK);
+    CHECK(s2.uptime_ms == 123456789u && s2.rx_frames == 65535 && s2.flags == 0x1F &&
+          s2.devices == 0x0F && s2.tune_free[0] == 1 && s2.tune_free[1] == 2);
+
+    haltz_io_device_t d = {.slot = 0, .state = 0, .kind = HALTZ_IO_DEV_GAMEPAD}, d2;
+    CHECK(haltz_io_device_pack(&d, b, sizeof(b), &n) == HALTZ_OK);
+    CHECK(haltz_io_device_unpack(&d2, b, n) == HALTZ_OK && d2.kind == 3 && d2.state == 0);
+
+    /* Every S3 -> I/O command through the union, both ways. */
+    haltz_io_cmd_t cmds[9];
+    memset(cmds, 0, sizeof(cmds));
+    cmds[0].type = HALTZ_MSG_IO_LED;
+    cmds[0].u.led = (haltz_io_led_t){.mode = HALTZ_IO_LED_BREATHE, .b = 255, .period_ms = 2000};
+    cmds[1].type = HALTZ_MSG_IO_TONE;
+    cmds[1].u.tone = (haltz_io_tone_t){.voice = 1, .hz = 20000, .ms = 65535};
+    cmds[2].type = HALTZ_MSG_IO_NOTES;
+    cmds[2].u.notes.voice = 0;
+    cmds[2].u.notes.flags = HALTZ_IO_NOTES_FLAGS;
+    cmds[2].u.notes.tick_ms = 255;
+    cmds[2].u.notes.count = HALTZ_IO_NOTES_MAX;
+    for (int i = 0; i < HALTZ_IO_NOTES_MAX; i++) {
+        cmds[2].u.notes.notes[i].note = (uint8_t)(i % 3 == 0 ? 0 : 12 + i % 116);
+        cmds[2].u.notes.notes[i].ticks = (uint8_t)(1 + i);
+    }
+    cmds[3].type = HALTZ_MSG_IO_SFX;
+    cmds[3].u.sfx = (haltz_io_sfx_msg_t){.id = HALTZ_IO_SFX_HIT, .voice = 1};
+    cmds[4].type = HALTZ_MSG_IO_STOP;
+    cmds[4].u.stop.voices = HALTZ_IO_VOICES_ALL;
+    cmds[5].type = HALTZ_MSG_IO_VOLUME;
+    cmds[5].u.volume = (haltz_io_volume_t){.voices = 2, .level = 77};
+    cmds[6].type = HALTZ_MSG_IO_STICK_CAL;
+    cmds[7].type = HALTZ_MSG_IO_BT;
+    cmds[7].u.bt.action = HALTZ_IO_BT_FORGET;
+    cmds[8].type = HALTZ_MSG_IO_LED;
+    cmds[8].u.led = (haltz_io_led_t){.mode = HALTZ_IO_LED_FADE, .period_ms = 0};
+    for (size_t i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++) {
+        haltz_io_cmd_t back;
+        memset(&back, 0xEE, sizeof(back));
+        CHECK(haltz_io_cmd_pack(&cmds[i], b, sizeof(b), &n) == HALTZ_OK);
+        CHECK(haltz_msg_check(cmds[i].type, n) == HALTZ_OK);
+        CHECK(haltz_io_cmd_unpack(&back, cmds[i].type, n ? b : NULL, n) == HALTZ_OK);
+        CHECK(back.type == cmds[i].type);
+        uint8_t b2[HALTZ_MAX_PAYLOAD];
+        size_t n2 = 0;
+        CHECK(haltz_io_cmd_pack(&back, b2, sizeof(b2), &n2) == HALTZ_OK);
+        CHECK(n2 == n && memcmp(b, b2, n) == 0);
+    }
+    CHECK(cmds[2].u.notes.count == 126);
+}
+
+static void test_io_bad(void) {
+    uint8_t b[HALTZ_MAX_PAYLOAD];
+    size_t n = 0;
+    haltz_io_cmd_t c;
+
+    /* Values that pack refuses (and unpack would too). */
+    haltz_io_keys_t k = {.count = 1, .usages = {0x03}};
+    CHECK(haltz_io_keys_pack(&k, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE); /* rollover code */
+    k.usages[0] = 0xE0;
+    CHECK(haltz_io_keys_pack(&k, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE); /* a modifier */
+    k = (haltz_io_keys_t){.count = 2, .usages = {0x04, 0x04}};
+    CHECK(haltz_io_keys_pack(&k, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE); /* duplicate */
+    k.count = 11;
+    CHECK(haltz_io_keys_pack(&k, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+
+    haltz_io_stick_t st = {.x = 1001};
+    CHECK(haltz_io_stick_pack(&st, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    st = (haltz_io_stick_t){.y = -1001};
+    CHECK(haltz_io_stick_pack(&st, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    st = (haltz_io_stick_t){.buttons = 0x04};
+    CHECK(haltz_io_stick_pack(&st, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+
+    haltz_io_device_t d = {.slot = 4};
+    CHECK(haltz_io_device_pack(&d, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    d = (haltz_io_device_t){.kind = 4};
+    CHECK(haltz_io_device_pack(&d, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+
+    haltz_io_led_t led = {.mode = 6};
+    CHECK(haltz_io_led_pack(&led, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    led = (haltz_io_led_t){.mode = HALTZ_IO_LED_BLINK, .period_ms = 19};
+    CHECK(haltz_io_led_pack(&led, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    led = (haltz_io_led_t){.mode = HALTZ_IO_LED_CODE, .period_ms = 400, .count = 0};
+    CHECK(haltz_io_led_pack(&led, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    led.count = 16;
+    CHECK(haltz_io_led_pack(&led, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    led = (haltz_io_led_t){.mode = HALTZ_IO_LED_SOLID, .count = 1};
+    CHECK(haltz_io_led_pack(&led, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    led = (haltz_io_led_t){.mode = HALTZ_IO_LED_FLASH, .period_ms = 0};
+    CHECK(haltz_io_led_pack(&led, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    led = (haltz_io_led_t){.mode = HALTZ_IO_LED_SOLID, .period_ms = 999}; /* ignored: OK */
+    CHECK(haltz_io_led_pack(&led, b, sizeof(b), &n) == HALTZ_OK);
+
+    haltz_io_tone_t t = {.voice = 2, .hz = 440};
+    CHECK(haltz_io_tone_pack(&t, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    t = (haltz_io_tone_t){.hz = 19};
+    CHECK(haltz_io_tone_pack(&t, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    t.hz = 20001;
+    CHECK(haltz_io_tone_pack(&t, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    t.hz = 0;
+    CHECK(haltz_io_tone_pack(&t, b, sizeof(b), &n) == HALTZ_OK);
+
+    haltz_io_notes_t nt = {.tick_ms = 10, .count = 1, .notes = {{.note = 11, .ticks = 1}}};
+    CHECK(haltz_io_notes_pack(&nt, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE); /* below C0 */
+    nt.notes[0] = (haltz_io_note_t){.note = 128, .ticks = 1};
+    CHECK(haltz_io_notes_pack(&nt, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    nt.notes[0] = (haltz_io_note_t){.note = 60, .ticks = 0};
+    CHECK(haltz_io_notes_pack(&nt, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    nt.notes[0].ticks = 1;
+    nt.tick_ms = 0;
+    CHECK(haltz_io_notes_pack(&nt, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    nt.tick_ms = 1;
+    nt.flags = 0x08;
+    CHECK(haltz_io_notes_pack(&nt, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    nt.flags = 0;
+    nt.count = 0;
+    CHECK(haltz_io_notes_pack(&nt, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    nt.count = 1;
+    CHECK(haltz_io_notes_pack(&nt, b, 4, &n) == HALTZ_ERR_NO_SPACE);
+    CHECK(haltz_io_notes_pack(&nt, b, 5, &n) == HALTZ_OK && n == 5);
+
+    haltz_io_sfx_msg_t sfx = {.id = HALTZ_IO_SFX_COUNT};
+    CHECK(haltz_io_sfx_pack(&sfx, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    haltz_io_stop_t stop = {.voices = 0};
+    CHECK(haltz_io_stop_pack(&stop, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    stop.voices = 0x04;
+    CHECK(haltz_io_stop_pack(&stop, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    haltz_io_volume_t vol = {.voices = 0x83, .level = 1};
+    CHECK(haltz_io_volume_pack(&vol, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+    haltz_io_bt_t bt = {.action = 3};
+    CHECK(haltz_io_bt_pack(&bt, b, sizeof(b), &n) == HALTZ_ERR_BAD_VALUE);
+
+    /* Lengths. IO_NOTES needs an odd length (3 header bytes + 2 per note). */
+    const uint8_t six[6] = {0, 0, 10, 60, 1, 0};
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_IO_NOTES, six, 6) == HALTZ_ERR_BAD_LEN);
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_IO_NOTES, six, 5) == HALTZ_OK);
+    CHECK(c.u.notes.count == 1 && c.u.notes.notes[0].note == 60);
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_IO_LED, six, 6) == HALTZ_ERR_BAD_LEN);
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_IO_STICK_CAL, six, 1) == HALTZ_ERR_BAD_LEN);
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_IO_STICK_CAL, NULL, 0) == HALTZ_OK);
+
+    /* Unpack applies the value rules too. */
+    const uint8_t bad_led[7] = {HALTZ_IO_LED_BLINK, 1, 2, 3, 5, 0, 0}; /* period 5 */
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_IO_LED, bad_led, 7) == HALTZ_ERR_BAD_VALUE);
+    const uint8_t bad_stick[5] = {0xE9, 0x03, 0, 0, 0}; /* x = 1001 */
+    haltz_io_stick_t st2;
+    CHECK(haltz_io_stick_unpack(&st2, bad_stick, 5) == HALTZ_ERR_BAD_VALUE);
+    const uint8_t dup_keys[3] = {0, 0x10, 0x10};
+    haltz_io_keys_t k2;
+    CHECK(haltz_io_keys_unpack(&k2, dup_keys, 3) == HALTZ_ERR_BAD_VALUE);
+
+    /* Types the command unpacker doesn't take. */
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_IO_KEYS, b, 1) == HALTZ_ERR_UNKNOWN_TYPE);
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_HELLO, b, 7) == HALTZ_ERR_UNKNOWN_TYPE);
+    CHECK(haltz_io_cmd_unpack(&c, HALTZ_MSG_GPU_INIT, NULL, 0) == HALTZ_ERR_UNKNOWN_TYPE);
+    c.type = HALTZ_MSG_IO_STATUS;
+    CHECK(haltz_io_cmd_pack(&c, b, sizeof(b), &n) == HALTZ_ERR_UNKNOWN_TYPE);
+
+    /* Arguments and space. */
+    CHECK(haltz_io_cmd_unpack(NULL, HALTZ_MSG_IO_STOP, b, 1) == HALTZ_ERR_ARG);
+    CHECK(haltz_io_stop_unpack(&stop, NULL, 1) == HALTZ_ERR_ARG);
+    stop.voices = 1;
+    CHECK(haltz_io_stop_pack(&stop, NULL, 8, &n) == HALTZ_ERR_ARG);
+    haltz_io_status_t s = {0};
+    CHECK(haltz_io_status_pack(&s, b, 15, &n) == HALTZ_ERR_NO_SPACE);
+    haltz_io_keys_t k3 = {.count = 3, .usages = {4, 5, 6}};
+    CHECK(haltz_io_keys_pack(&k3, b, 3, &n) == HALTZ_ERR_NO_SPACE);
+    CHECK(haltz_io_keys_pack(&k3, b, 4, &n) == HALTZ_OK && n == 4);
+}
+
+/* Frames through the encoder and decoder, with the UART idle flush after a false SYNC. */
+static void test_io_stream(void) {
+    uint8_t stream[1024];
+    size_t len = 0;
+    uint8_t p[HALTZ_MAX_PAYLOAD];
+    size_t n = 0;
+
+    /* A false SYNC announcing a long frame that never comes (line noise), then silence. */
+    const uint8_t noise[] = {0x00, HALTZ_SYNC, 0x41, 200, 0x12};
+    haltz_decoder_t dec;
+    haltz_decoder_init(&dec);
+    events_t ev = {0};
+    feed_all(&dec, noise, sizeof(noise), &ev);
+    CHECK(ev.frames == 0);
+    on_result(&dec, haltz_decoder_flush(&dec), &ev); /* the receiver's 10 ms idle flush */
+    CHECK(dec.flushes == 1);
+
+    haltz_io_stick_t st = {.x = 500, .y = -500, .buttons = 1};
+    CHECK(haltz_io_stick_pack(&st, p, sizeof(p), &n) == HALTZ_OK);
+    len += make_frame(HALTZ_MSG_IO_STICK, p, n, stream + len);
+    haltz_io_keys_t k = {.modifiers = 0, .count = 1, .usages = {0x0B}};
+    CHECK(haltz_io_keys_pack(&k, p, sizeof(p), &n) == HALTZ_OK);
+    len += make_frame(HALTZ_MSG_IO_KEYS, p, n, stream + len);
+    haltz_io_notes_t nt = {.voice = 0, .tick_ms = 1, .count = HALTZ_IO_NOTES_MAX};
+    for (int i = 0; i < nt.count; i++) {
+        nt.notes[i] = (haltz_io_note_t){.note = (uint8_t)(48 + i % 24), .ticks = 2};
+    }
+    CHECK(haltz_io_notes_pack(&nt, p, sizeof(p), &n) == HALTZ_OK && n == 255);
+    len += make_frame(HALTZ_MSG_IO_NOTES, p, n, stream + len);
+    len += make_frame(HALTZ_MSG_IO_STICK_CAL, NULL, 0, stream + len);
+
+    feed_all(&dec, stream, len, &ev);
+    CHECK(ev.frames == 4 && ev.crc_errors == 0);
+    haltz_io_stick_t st2;
+    CHECK(ev.last[0].type == HALTZ_MSG_IO_STICK &&
+          haltz_io_stick_unpack(&st2, ev.last[0].payload, ev.last[0].len) == HALTZ_OK &&
+          st2.x == 500 && st2.y == -500);
+    CHECK(ev.last[1].type == HALTZ_MSG_IO_KEYS && ev.last[1].payload[1] == 0x0B);
+    haltz_io_cmd_t c;
+    CHECK(ev.last[2].type == HALTZ_MSG_IO_NOTES &&
+          haltz_io_cmd_unpack(&c, ev.last[2].type, ev.last[2].payload, ev.last[2].len) ==
+              HALTZ_OK &&
+          c.u.notes.count == 126 && c.u.notes.notes[125].note == 48 + 125 % 24);
+    CHECK(ev.last[3].type == HALTZ_MSG_IO_STICK_CAL && ev.last[3].len == 0);
+}
+
 int main(void) {
     struct {
         const char *name;
@@ -824,6 +1144,11 @@ int main(void) {
         {"GPU bad lengths and types", test_gpu_bad_len},
         {"GPU bad values, buffer space, arguments", test_gpu_bad_value},
         {"GPU default palette and font", test_gpu_tables},
+        {"I/O message table and constants", test_io_msg_table},
+        {"I/O wire layout (bytes)", test_io_wire_layout},
+        {"I/O pack/unpack round trip, every message", test_io_roundtrip},
+        {"I/O bad values, lengths, types, space", test_io_bad},
+        {"I/O frames through encoder, decoder and idle flush", test_io_stream},
     };
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
         int before = g_fails;

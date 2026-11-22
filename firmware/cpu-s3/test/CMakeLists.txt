@@ -5,6 +5,7 @@
 #   ./build-cpu-test/cpu_gpu_tests
 #   ./build-cpu-test/cpu_con_tests
 #   ./build-cpu-test/cpu_demo_tests [png_dir]   (with png_dir: demo frames as PNG files)
+#   ./build-cpu-test/cpu_io_tests
 cmake_minimum_required(VERSION 3.13)
 project(haltz_cpu_tests C)
 
@@ -26,7 +27,11 @@ add_executable(cpu_demo_tests
     ../../gpu-pico/src/gpu_state.c
     ../../gpu-pico/src/gpu_render.c)
 
-foreach(t cpu_gpu_tests cpu_con_tests cpu_demo_tests)
+add_executable(cpu_io_tests
+    test_io_keys.c
+    ../src/io_keys.c)
+
+foreach(t cpu_gpu_tests cpu_con_tests cpu_demo_tests cpu_io_tests)
   target_include_directories(${t} PRIVATE ../src)
   target_link_libraries(${t} haltz_proto)
   if(NOT APPLE AND NOT WIN32)

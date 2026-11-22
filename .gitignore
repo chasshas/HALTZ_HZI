@@ -4,6 +4,7 @@ build/
 build-host/
 build-gpu-test/
 build-cpu-test/
+build-io-test/
 managed_components/
 dependencies.lock
 

@@ -36,8 +36,12 @@
 #define PIN_BUZZER_A 25 /* voice A */
 #define PIN_BUZZER_B 26 /* voice B */
 
+/* ---- Spare push button (optional, architecture-v1: right click?) ---- */
+/* Button to GND, internal pull-up, active low. Not wired yet: then it reads released. */
+#define PIN_SPARE_BUTTON 33
+
 /* ---- Spare, free for later ---- */
-/* 4, 13, 14, 22, 23, 27, 33, 39 (39 is input only) */
+/* 4, 13, 14, 22, 23, 27, 39 (39 is input only) */
 
 /*
  * Never use:

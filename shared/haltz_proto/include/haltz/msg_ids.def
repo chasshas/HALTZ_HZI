@@ -8,7 +8,7 @@
 // starting with // are comments. Never reuse an ID.
 //
 // ID ranges: 0x01-0x0F every link, 0x10-0x3F GPU link (docs/gpu-protocol-v1.md),
-// 0x40-0x6F reserved for the I/O link.
+// 0x40-0x6F I/O link (docs/io-protocol-v1.md): 0x40-0x4F I/O -> S3, 0x50-0x6F S3 -> I/O.
 
 // ---- every link ----
 X(HELLO, 0x01, 7, 7)
@@ -45,3 +45,20 @@ X(GPU_BMP_COPY, 0x33, 12, 12)
 
 // ---- GPU link, GPU -> S3 ----
 X(GPU_STATUS, 0x3F, 18, 18)
+
+// ---- I/O link, I/O board -> S3: input (whole states, repeated) and health ----
+X(IO_KEYS, 0x40, 1, 11)
+X(IO_STICK, 0x41, 5, 5)
+X(IO_KNOB, 0x42, 1, 1)
+X(IO_DEVICE, 0x43, 8, 8)
+X(IO_STATUS, 0x4F, 16, 16)
+
+// ---- I/O link, S3 -> I/O board: LED, sound, controls ----
+X(IO_LED, 0x50, 7, 7)
+X(IO_TONE, 0x51, 5, 5)
+X(IO_NOTES, 0x52, 5, 255)
+X(IO_SFX, 0x53, 2, 2)
+X(IO_STOP, 0x54, 1, 1)
+X(IO_VOLUME, 0x55, 2, 2)
+X(IO_STICK_CAL, 0x56, 0, 0)
+X(IO_BT, 0x57, 1, 1)

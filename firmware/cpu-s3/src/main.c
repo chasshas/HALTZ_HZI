@@ -20,8 +20,9 @@
  *
  * Everything printed also appears on the TFT (console.c): stdout is teed first thing, the GPU
  * driver (gpu.c) and the console task start right after the banner, so the self-test lines
- * show on the screen. Then the bring-up screen runs (gpu_bringup.c, docs/gpu-protocol-v1.md
- * section 9).
+ * show on the screen. The I/O link driver (io.c) starts with them: it resets the I/O board
+ * and does its handshake in the background. Then the bring-up screen runs (gpu_bringup.c and
+ * io_bringup.c; docs/gpu-protocol-v1.md section 9, docs/io-protocol-v1.md section 11).
  */
 #include <inttypes.h>
 #include <stdbool.h>
@@ -42,6 +43,7 @@
 #include "board_pins.h"
 #include "console.h"
 #include "gpu.h"
+#include "io.h"
 #include "haltz/board_ids.h"
 #include "haltz/msgs.h"
 #include "haltz/packet.h"
@@ -329,6 +331,10 @@ void app_main(void) {
     esp_err_t err = gpu_start();
     if (err != ESP_OK) {
         printf("gpu: driver did not start: %s\n", esp_err_to_name(err));
+    }
+    err = io_start(); /* resets the I/O board: the Bluetooth keyboard reconnects after it */
+    if (err != ESP_OK) {
+        printf("io: driver did not start: %s\n", esp_err_to_name(err));
     }
     err = con_start(0, HALTZ_GPU_TEXT_ROWS);
     if (err != ESP_OK) {

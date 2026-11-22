@@ -1,9 +1,12 @@
 /*
- * HALTZ CPU: GPU link bring-up screen and stress test (docs/gpu-protocol-v1.md section 9,
- * steps 2-4). Stands in for the kernel until there is one.
+ * HALTZ CPU: bring-up screen. GPU link statistics and stress test (docs/gpu-protocol-v1.md
+ * section 9), I/O link state, input and sound (io_bringup.c, docs/io-protocol-v1.md
+ * section 11). Stands in for the kernel until there is one.
  *
- * Screen: row 0 title, rows 1-3 live link statistics (twice a second), row 4 a separator,
- * rows 5-28 the console window (everything printed: console.c), row 29 the keys.
+ * Screen: row 0 title, rows 1-3 GPU link statistics (twice a second), rows 4-5 the I/O link
+ * and input, row 6 a separator, rows 7-28 the console window (everything printed and every
+ * key typed on the Bluetooth keyboard: console.c), row 29 the keys. The stick moves the
+ * pointer.
  * Keys on either S3 USB port: the "UART" port (UART0, the primary console, 115200 baud) or
  * the native "USB" port (USB Serial/JTAG; ESP-IDF makes it an output-only secondary console,
  * so its keys are read here through the USB Serial/JTAG driver):
@@ -15,6 +18,7 @@
  *      happened, and every PRESENT got its FRAME pulse.
  *   g  the demo scene (demo_scene.c, protocol section 9 step 5): every layer, driven from
  *      here, with the frame rate measured on the S3. Any key goes back.
+ *   i p b l c e k  the I/O link keys (io_bringup.c)
  */
 #include <inttypes.h>
 #include <stdarg.h>
@@ -33,6 +37,7 @@
 #include "demo_scene.h"
 #include "gpu.h"
 #include "haltz/msgs.h"
+#include "io_bringup.h"
 
 #define UPDATE_MS        500
 #define STRESS_FRAME_MS  16
@@ -40,9 +45,10 @@
 
 /* Layout */
 #define ROW_STATS   1 /* 3 rows */
-#define ROW_SEP     4
-#define ROW_LOG     5
-#define LOG_ROWS    24
+#define ROW_IO      4 /* 2 rows */
+#define ROW_SEP     6
+#define ROW_LOG     7
+#define LOG_ROWS    22
 #define ROW_KEYS    29
 
 enum { C_TEXT = HALTZ_COLOR_WHITE, C_DIM = HALTZ_COLOR_LIGHT_GREY, C_BAD = HALTZ_COLOR_RED };
@@ -73,14 +79,14 @@ static void put_line(int row, uint8_t fg, const char *fmt, ...) {
  * log); after a GPU_INIT call con_redraw() too. */
 static void draw_screen(void) {
     gpu_text_fill(0, 0, HALTZ_GPU_TEXT_COLS, 1, ' ', C_TEXT, HALTZ_COLOR_DARK_BLUE);
-    gpu_text_print(1, 0, C_TEXT, HALTZ_COLOR_DARK_BLUE, "HALTZ CPU - GPU link bring-up");
+    gpu_text_print(1, 0, C_TEXT, HALTZ_COLOR_DARK_BLUE, "HALTZ CPU - bring-up");
     uint8_t sep[HALTZ_GPU_TEXT_COLS];
     memset(sep, HALTZ_GLYPH_BOX_H, sizeof(sep));
     gpu_text_put(0, ROW_SEP, HALTZ_COLOR_DARK_GREY, 0, sep, sizeof(sep));
     gpu_text_print(2, ROW_SEP, HALTZ_COLOR_YELLOW, 0, " log ");
     gpu_text_fill(0, ROW_KEYS, HALTZ_GPU_TEXT_COLS, 1, ' ', C_DIM, HALTZ_COLOR_DARK_BLUE);
     gpu_text_print(1, ROW_KEYS, C_DIM, HALTZ_COLOR_DARK_BLUE,
-                   "s stats f MHz r reset t stress g demo");
+                   "GPU s f r t g  IO i p b l c e k");
 }
 
 static void update_screen(void) {
@@ -97,6 +103,7 @@ static void update_screen(void) {
     put_line(ROW_STATS + 2, bad ? C_BAD : C_DIM,
              " crc %u ovr %u nak %" PRIu32 " miso %" PRIu32 " rst %" PRIu32, g->crc_errors,
              g->rx_overruns, st.naks, st.miso_crc_errors, st.resets);
+    io_bringup_draw();
 }
 
 /* Short lines: they also go to the 40-column console window. */
@@ -135,6 +142,7 @@ static void screen_take(void) {
 
 static void screen_give_back(void) {
     gpu_init_picture();
+    io_bringup_redraw(); /* the pointer pattern */
     draw_screen();
     update_screen();
     con_hold(false); /* redraws the log */
@@ -416,6 +424,7 @@ void gpu_bringup_run(void) {
     /* The boot log filled the whole screen; from now on it scrolls between the status rows
      * and the key row. Drawn at once: if the link isn't up yet, the shadow keeps it. */
     con_set_window(ROW_LOG, LOG_ROWS);
+    io_bringup_init(ROW_IO);
     draw_screen();
     update_screen();
     gpu_present();
@@ -423,6 +432,7 @@ void gpu_bringup_run(void) {
         print_stats();
     }
     printf("keys: s stats, f 4/10 MHz, r reset GPU,\n      t stress test, g demo\n");
+    io_bringup_help();
 
     stress_t stress = {0};
     int64_t next_update = 0;
@@ -459,10 +469,14 @@ void gpu_bringup_run(void) {
         case '\n':
             break;
         default:
-            printf("keys: s stats, f 4/10 MHz, r reset GPU,\n      t stress test, g demo\n");
+            if (!io_bringup_key(c)) {
+                printf("keys: s stats, f 4/10 MHz, r reset GPU,\n      t stress test, g demo\n");
+                io_bringup_help();
+            }
             break;
         }
 
+        bool pointer_moved = io_bringup_poll(!stress.on);
         if (stress.on) {
             stress_step(&stress);
             vTaskDelay(1);
@@ -471,6 +485,8 @@ void gpu_bringup_run(void) {
         if (now_ms() >= next_update) {
             next_update = now_ms() + UPDATE_MS;
             update_screen();
+            gpu_present();
+        } else if (pointer_moved) {
             gpu_present();
         }
         vTaskDelay(pdMS_TO_TICKS(10));

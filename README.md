@@ -109,13 +109,44 @@ would drop it ("Couldn't find the main target of the project!").
 [esp-idf-arduino-bluepad32-template](https://github.com/ricardoquesada/esp-idf-arduino-bluepad32-template)
 at commit `2c881858` (2026-10-13), with `components/arduino` and `external/btstack` from its
 submodules. Its platform pin (pioarduino `55.03.31-2`, ESP-IDF 5.5) is kept as the template
-ships it. HALTZ changes: only the `esp32dev` environment, the `haltz_proto` component,
-`main/board_pins.h` and `main/haltz_selftest.cpp`, plus two for keyboard reconnect:
-`main/sketch.cpp` no longer calls `BP32.forgetBluetoothKeys()` at boot, and
-`components/bluepad32/bt/uni_bt_le.c` accepts advertisements from bonded addresses that carry
-no appearance field (the keyboard sends those when it reconnects outside pairing mode; without
-this they were dropped). Re-apply both after updating the template. The optional btstack patch in
-`external/patches` (DualShock 3 support) is not applied.
+ships it. HALTZ changes: only the `esp32dev` environment, the `haltz_proto` component, and
+the HALTZ files in `main/`. Bluepad32 runs with HALTZ's own platform (`main/haltz_platform.c`)
+instead of the template's Arduino one, so the template's `main/sketch.cpp` is gone; the
+platform doesn't delete the stored pairings at boot, so the keyboard reconnects after a reset.
+One change inside the template: `components/bluepad32/bt/uni_bt_le.c` accepts advertisements
+from bonded addresses that carry no appearance field (the keyboard sends those when it
+reconnects outside pairing mode; without this they were dropped). Re-apply it after updating
+the template. The optional btstack patch in `external/patches` (DualShock 3 support) is not
+applied.
+
+The I/O firmware implements `docs/io-protocol-v1.md`: the UART link to the S3, the stick,
+knob and buttons, the two-voice sound sequencer and the status LED. On its console
+(`/dev/cu.usbserial-…`, 115200, Bluepad32's prompt) HALTZ adds `io` (link and input state),
+`io_watch` (print every input message), `io_test` (LED colours, every sound effect, a
+two-voice tune; no S3 needed), `bt_scan on|off` and `bt_forget`. The sequencer and the LED
+patterns also build on the PC with tests:
+
+```bash
+cmake -S firmware/io-esp32/test -B build-io-test
+```
+
+```bash
+cmake --build build-io-test && ./build-io-test/io_fx_tests
+```
+
+The S3's bring-up screen shows the I/O link on rows 4-5, moves a pointer with the stick and
+types the Bluetooth keyboard into its console window. Its I/O keys (on the S3's USB console):
+`i` statistics, `p` test tune, `b` next sound effect, `l` next LED pattern, `c` stick centre,
+`e` reset the I/O board, `k` link test. PC tests for the S3's portable code (shadow replay,
+console, demo, keyboard decoding):
+
+```bash
+cmake -S firmware/cpu-s3/test -B build-cpu-test && cmake --build build-cpu-test
+```
+
+```bash
+./build-cpu-test/cpu_io_tests
+```
 
 **gpu-pico** (Pico SDK 2.3.1, board `pico2_w`, platform `rp2350-arm-s`): open the
 `gpu-pico` folder with the Raspberry Pi Pico extension and press *Compile*, or from a shell:
