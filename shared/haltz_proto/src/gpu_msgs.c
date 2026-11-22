@@ -797,3 +797,53 @@ haltz_err_t haltz_gpu_cmd_unpack(haltz_gpu_cmd_t *cmd, uint8_t type, const uint8
         return HALTZ_ERR_UNKNOWN_TYPE;
     }
 }
+
+haltz_err_t haltz_gpu_cmd_pack(const haltz_gpu_cmd_t *cmd, uint8_t *buf, size_t cap,
+                               size_t *out_len) {
+    if (cmd == NULL) {
+        return HALTZ_ERR_ARG;
+    }
+    switch (cmd->type) {
+    case HALTZ_MSG_GPU_INIT:
+    case HALTZ_MSG_GPU_STATUS_REQ:
+        return pack_done(out_len, 0);
+    case HALTZ_MSG_GPU_PRESENT:
+        return haltz_gpu_present_pack(&cmd->u.present, buf, cap, out_len);
+    case HALTZ_MSG_GPU_BACKLIGHT:
+        return haltz_gpu_backlight_pack(&cmd->u.backlight, buf, cap, out_len);
+    case HALTZ_MSG_GPU_LAYERS:
+        return haltz_gpu_layers_pack(&cmd->u.layers, buf, cap, out_len);
+    case HALTZ_MSG_GPU_PALETTE:
+        return haltz_gpu_palette_pack(&cmd->u.palette, buf, cap, out_len);
+    case HALTZ_MSG_GPU_TEXT_PUT:
+        return haltz_gpu_text_put_pack(&cmd->u.text_put, buf, cap, out_len);
+    case HALTZ_MSG_GPU_TEXT_FILL:
+        return haltz_gpu_text_fill_pack(&cmd->u.text_fill, buf, cap, out_len);
+    case HALTZ_MSG_GPU_TEXT_SCROLL:
+        return haltz_gpu_text_scroll_pack(&cmd->u.text_scroll, buf, cap, out_len);
+    case HALTZ_MSG_GPU_TEXT_CURSOR:
+        return haltz_gpu_text_cursor_pack(&cmd->u.text_cursor, buf, cap, out_len);
+    case HALTZ_MSG_GPU_FONT_LOAD:
+        return haltz_gpu_font_load_pack(&cmd->u.font_load, buf, cap, out_len);
+    case HALTZ_MSG_GPU_PATTERN_LOAD:
+        return haltz_gpu_pattern_load_pack(&cmd->u.pattern_load, buf, cap, out_len);
+    case HALTZ_MSG_GPU_TILE_PUT:
+        return haltz_gpu_tile_put_pack(&cmd->u.tile_put, buf, cap, out_len);
+    case HALTZ_MSG_GPU_TILE_FILL:
+        return haltz_gpu_tile_fill_pack(&cmd->u.tile_fill, buf, cap, out_len);
+    case HALTZ_MSG_GPU_TILE_SCROLL:
+        return haltz_gpu_tile_scroll_pack(&cmd->u.tile_scroll, buf, cap, out_len);
+    case HALTZ_MSG_GPU_SPRITE_SET:
+        return haltz_gpu_sprite_set_pack(&cmd->u.sprite_set, buf, cap, out_len);
+    case HALTZ_MSG_GPU_BMP_PIXELS:
+        return haltz_gpu_bmp_pixels_pack(&cmd->u.bmp_pixels, buf, cap, out_len);
+    case HALTZ_MSG_GPU_BMP_FILL:
+        return haltz_gpu_bmp_fill_pack(&cmd->u.bmp_fill, buf, cap, out_len);
+    case HALTZ_MSG_GPU_BMP_LINE:
+        return haltz_gpu_bmp_line_pack(&cmd->u.bmp_line, buf, cap, out_len);
+    case HALTZ_MSG_GPU_BMP_COPY:
+        return haltz_gpu_bmp_copy_pack(&cmd->u.bmp_copy, buf, cap, out_len);
+    default:
+        return HALTZ_ERR_UNKNOWN_TYPE;
+    }
+}

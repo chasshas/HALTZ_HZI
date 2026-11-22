@@ -1,5 +1,5 @@
 /*
- * HALTZ CPU (ESP32-S3) - step 1: boot self-test.
+ * HALTZ CPU (ESP32-S3) - boot self-test, then the GPU link bring-up (gpu_bringup.c).
  *
  * ---- Memory rules for this board ---------------------------------------------------------
  *  - Plain malloc() stays in internal RAM. PSRAM only through
@@ -17,6 +17,9 @@
  *  4. XIP test: a task on core 1 hammers a PSRAM buffer while core 0 erases and writes
  *     sectors of the "storage" partition. With code executing from PSRAM
  *     (CONFIG_SPIRAM_XIP_FROM_PSRAM) core 1 must keep running during the flash writes.
+ *
+ * Then the GPU driver (gpu.c) starts, and the bring-up screen runs on the TFT with a small
+ * console on the S3 port (docs/gpu-protocol-v1.md section 9, steps 2-4).
  */
 #include <inttypes.h>
 #include <stdbool.h>
@@ -295,6 +298,15 @@ static bool xip_test(void) {
 #ifdef HALTZ_WIRING_TEST
 void haltz_wiring_test(void); /* wiring_test.c, never returns */
 #endif
+void gpu_bringup_run(void); /* gpu_bringup.c, returns only if the GPU driver can't start */
+
+/* Own task: app_main's stack (3584 bytes) is too small for the bring-up console. Core 0 with
+ * the other system services (architecture-v1); the stack is internal RAM. */
+static void console_task(void *arg) {
+    (void)arg;
+    gpu_bringup_run();
+    vTaskDelete(NULL);
+}
 
 void app_main(void) {
     print_banner();
@@ -313,8 +325,11 @@ void app_main(void) {
            (hello_ok && xip_ok) ? "ALL OK" : "FAILURES",
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    (void)PIN_HALT_BUTTON; /* pins are defined but unused in step 1 */
+    (void)PIN_HALT_BUTTON; /* not used yet */
 
+    if (xTaskCreatePinnedToCore(console_task, "console", 8192, NULL, 5, NULL, 0) != pdPASS) {
+        printf("cannot start the console task\n");
+    }
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }

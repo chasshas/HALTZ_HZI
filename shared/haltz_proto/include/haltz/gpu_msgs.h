@@ -221,6 +221,14 @@ typedef struct {
 haltz_err_t haltz_gpu_cmd_unpack(haltz_gpu_cmd_t *cmd, uint8_t type, const uint8_t *buf,
                                  size_t len);
 
+/*
+ * The other direction: pack cmd->u (selected by cmd->type) into buf, like the per-message
+ * pack functions. GPU_INIT and GPU_STATUS_REQ pack to 0 bytes (buf may then be NULL).
+ * UNKNOWN_TYPE for types haltz_gpu_cmd_unpack does not accept.
+ */
+haltz_err_t haltz_gpu_cmd_pack(const haltz_gpu_cmd_t *cmd, uint8_t *buf, size_t cap,
+                               size_t *out_len);
+
 #ifdef __cplusplus
 }
 #endif

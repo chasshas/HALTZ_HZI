@@ -405,6 +405,11 @@ static void test_len_limits(void) {
         CHECK(haltz_gpu_cmd_unpack(&out_, (id), buf_, n_) == HALTZ_OK);                        \
         CHECK(out_.type == (id));                                                              \
         CHECK(memcmp(&out_.u.name, &(in), sizeof(in)) == 0);                                   \
+        /* and back through the generic packer: the same bytes */                             \
+        uint8_t again_[HALTZ_MAX_PAYLOAD];                                                     \
+        size_t m_ = 0;                                                                         \
+        CHECK(haltz_gpu_cmd_pack(&out_, again_, sizeof(again_), &m_) == HALTZ_OK);             \
+        CHECK(m_ == n_ && memcmp(again_, buf_, n_) == 0);                                      \
     } while (0)
 
 static void test_gpu_wire_layout(void) {
@@ -582,6 +587,20 @@ static void test_gpu_roundtrip_all(void) {
     CHECK(haltz_gpu_cmd_unpack(&cmd, HALTZ_MSG_GPU_INIT, NULL, 0) == HALTZ_OK);
     CHECK(cmd.type == HALTZ_MSG_GPU_INIT);
     CHECK(haltz_gpu_cmd_unpack(&cmd, HALTZ_MSG_GPU_STATUS_REQ, NULL, 0) == HALTZ_OK);
+    size_t n = 99;
+    CHECK(haltz_gpu_cmd_pack(&cmd, NULL, 0, &n) == HALTZ_OK && n == 0);
+
+    /* Generic packer: same value rules, unknown types refused. */
+    uint8_t buf[HALTZ_MAX_PAYLOAD];
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.type = HALTZ_MSG_GPU_SPRITE_SET;
+    cmd.u.sprite_set.id = HALTZ_GPU_SPRITES; /* 64: out of range */
+    CHECK(haltz_gpu_cmd_pack(&cmd, buf, sizeof(buf), &n) == HALTZ_ERR_BAD_VALUE);
+    cmd.type = HALTZ_MSG_GPU_STATUS; /* goes the other way */
+    CHECK(haltz_gpu_cmd_pack(&cmd, buf, sizeof(buf), &n) == HALTZ_ERR_UNKNOWN_TYPE);
+    cmd.type = HALTZ_MSG_HELLO;
+    CHECK(haltz_gpu_cmd_pack(&cmd, buf, sizeof(buf), &n) == HALTZ_ERR_UNKNOWN_TYPE);
+    CHECK(haltz_gpu_cmd_pack(NULL, buf, sizeof(buf), &n) == HALTZ_ERR_ARG);
 }
 
 /* Through the real frame encoder and decoder, several commands back to back with filler. */

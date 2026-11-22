@@ -1,7 +1,8 @@
 # HALTZ GPU protocol v1 (provisional)
 
-Status: draft, rev 2, 2026-11-22. Goes with architecture-v1.md (GPU section) and wiring-v1.md (stage 3).
+Status: draft, rev 3, 2026-11-22. Goes with architecture-v1.md (GPU section) and wiring-v1.md (stage 3).
 Rev 2: strip rendering decided; GPU firmware written (section 6).
+Rev 3: S3 driver written (section 7).
 Covers how the S3 talks to the Pico GPU over the SPI link: transport rules, boot handshake, the picture model, and every message.
 The single source of truth for IDs and sizes is `shared/haltz_proto/include/haltz/msg_ids.def`; constants and bit layouts are in `haltz/gpu.h`. This document explains them.
 Two points differ from architecture-v1: the GPU does not keep a double-buffered RGB565 frame (decided), and drawing commands get no ACK (open question 2).
@@ -211,10 +212,19 @@ Decided 2026-11-22: strips with dirty rectangles, no frame buffer (was open ques
 - Console: Pico #1's own USB port (USB serial; also lets picotool restart it for flashing, so no debug probe is needed), and the same output on UART0 (GP0/GP1) for a probe. `d` runs a demo using every layer (only before the CPU has said HELLO), `s` prints the counters, `v` the banner. NAKs, HELLOs and overruns are logged there. A terminal that stops reading can delay the GPU by at most 2 ms per line (then output is dropped), so it can't stall the link. This changes repo-layout-v1 ("stdio over USB off").
 
 ## 7. S3 side
-- A `gpu` driver task on core 0. The kernel console and the VM syscalls call `gpu_*()` functions that append frames to a 4 KB DMA buffer in internal RAM (two buffers, used in turn). A buffer is sent when it's full, at PRESENT, or 2 ms after its first frame (keeps typing snappy). Before each send, the task waits for BUSY low.
+Implemented in `firmware/cpu-s3/src/gpu.c` (API in `gpu.h`), 2026-11-22. First run on the boards the same day: link up, bring-up screen, stress test passed at 4 MHz and at 10 MHz, about 26 fps (full-screen redraws every frame, so the GPU's panel link is the limit, as in section 6). The driver still boots at 4 MHz (`GPU_SPI_HZ_BOOT` in `gpu.h`).
+- A `gpu` driver task on core 0 (priority 8). The kernel console and the VM syscalls call `gpu_*()` functions that append frames to a 4 KB DMA buffer in internal RAM (two buffers, used in turn: DMA sends one while the other fills). A buffer is sent when it's full, at PRESENT, or 2 ms after its first frame (keeps typing snappy). Before each send, BUSY must be low.
+- One mutex covers the shadow, the buffers and the SPI device, so the shadow and the byte stream see commands in the same order. The caller that fills a buffer also starts its DMA; the task does the 2 ms flushes, the polls, the handshake and the health checks.
+- Every `gpu_*()` call checks its values with `haltz_gpu_cmd_pack()` first (`HALTZ_ERR_BAD_VALUE`: nothing is sent, nothing changes). Calls with more data than one message (text, palette, font, tile map, bitmap rows) are split into several messages.
 - The MISO bytes of every transaction go into one decoder. HELLO, STATUS and NAK are handled there; NAKs are logged on the console.
-- The same `gpu_*()` calls update the shadow state in PSRAM, which is replayed after a GPU reset.
+- Handshake: the GPU's HELLO is not enough. The GPU firmware queues its boot HELLO before the panel init (about 0.5 s of ST7789 delays) and reads no commands until the boot screen is drawn, so a PRESENT sent at once missed the 500 ms FRAME timeout and the S3 kept resetting the GPU (seen at the first bring-up). After the HELLO the S3 sends GPU_STATUS_REQ every 50 ms and starts the replay only when GPU_STATUS comes back (2 s timeout, then reset).
+- GPU_STATUS_REQ every 250 ms; while a reply is due and nothing else is sent, a 64-byte poll every 2 ms.
+- The shadow is the GPU firmware's own `gpu_state_t` (`firmware/gpu-pico/src/gpu_state.c`, compiled into the S3 build too), about 119 KB in PSRAM, changed by `gpu_state_apply()` with the same command structs. So it can't drift from the GPU's copy. Backlight is kept next to it.
+- After a GPU reset or reboot: HELLO, GPU_INIT, then `gpu_replay()` (`gpu_replay.c`) sends only what differs from the GPU_INIT defaults, then PRESENT. A text screen costs a few hundred bytes; the worst case (every layer full) is about 100 KB, 0.2 s at 4 MHz. While the link is down, drawing calls still update the shadow and nothing waits. A PC test (`firmware/cpu-s3/test`) checks that 1000 random pictures come back exactly.
+- Pacing: `gpu_present()` waits until the previous PRESENT's FRAME pulse before it sends the next one. `gpu_vsync()` waits until every PRESENT is on the panel (while the link is down it sleeps 16 ms, so frame loops keep their pace).
 - The FRAME pin interrupt counts frames and wakes whoever waits for vsync.
+- GPU missing (3 resets without HELLO): console message, then a new attempt every 10 s. The red LED blink is not done yet (the on-board RGB LED needs the RMT driver).
+- Bring-up program for section 9 steps 2-4 (`gpu_bringup.c`, runs after the boot self-test): a status screen on the TFT and keys on the S3 console: `s` statistics, `f` 4/10 MHz, `r` reset the GPU, `t` stress test (random valid commands of every kind, PRESENT every 16 ms; when it stops it checks crc_errors, rx_overruns and NAKs stayed 0, no reset, and every PRESENT got its FRAME pulse).
 
 ## 8. Shared code
 - `msg_ids.def` lines are now `X(NAME, ID, MIN_LEN, MAX_LEN)`. Fixed-size messages have MIN = MAX. `haltz_msg_check()` checks the range; each message's unpack function checks the rest (odd length, multiple of 8, ...).
@@ -222,7 +232,7 @@ Decided 2026-11-22: strips with dirty rectangles, no frame buffer (was open ques
 - `haltz/gpu_msgs.h`: one struct per message, `haltz_gpu_<name>_pack()` / `_unpack()` for each, and `haltz_gpu_cmd_unpack()`, which unpacks any S3 -> GPU command into one union (what the GPU's command loop calls). Pack and unpack apply the same value rules, so the S3 finds its own bugs before they reach the wire.
 - Default palette and font: `src/gpu_tables.c`, generated by `tools/gen_gpu_tables.py` from the palette definition in the script and `assets/font8x8.txt`. The generated file is committed, so building firmware needs no Python. `--check` tells whether it is up to date.
 - `HALTZ_PROTO_VERSION` goes from 1 to 2 (new message set). All three boards need re-flashing.
-- Next: the S3 `gpu` driver (section 7).
+- `haltz_gpu_cmd_pack()` is the other direction of `haltz_gpu_cmd_unpack()`: any command union to its payload (the S3 driver builds one struct, packs it, and applies it to the shadow). Not a wire change.
 
 ## 9. Bring-up order
 1. GPU alone: the boot screen drawn by the real renderer (no link yet), then the demo (`d` on the probe console).
